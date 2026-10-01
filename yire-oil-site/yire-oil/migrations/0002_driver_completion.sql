@@ -1,0 +1,1 @@
+ALTER TABLE bookings ADD COLUMN completed_at INTEGER;

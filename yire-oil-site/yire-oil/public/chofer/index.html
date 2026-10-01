@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/chofer/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Chofer | Yire Oil Service</title>
+<style>
+:root{color-scheme:light;--red:#d21f26;--red-dark:#a71920;--ink:#171918;--paper:#f4f3ef;--white:#fff;--line:#d4d5d1;--muted:#5e6561;--green:#176b46;--amber:#8a4c00;--soft-red:#fbe9e9;font-family:Barlow,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--paper)}
+*{box-sizing:border-box}
+body{margin:0;min-width:320px;font-size:17px;line-height:1.45}
+button,input{font:inherit;color:inherit}
+button,a,input{touch-action:manipulation}
+:focus-visible{outline:3px solid #1267a5;outline-offset:3px}
+.masthead{background:#111;color:#fff;border-bottom:8px solid var(--red)}
+.head-inner,.page{width:min(100% - 32px,900px);margin-inline:auto}
+.head-inner{min-height:74px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand img{width:46px;height:46px;object-fit:cover;border-radius:3px}
+.brand-name{font:800 21px/1 "Barlow Condensed",sans-serif;text-transform:uppercase}
+.brand-sub{margin-top:4px;color:#c9ccca;font-size:13px}
+.private{border:1px solid #616663;border-radius:4px;padding:6px 9px;color:#e8e9e8;font-size:13px;white-space:nowrap}
+.page{padding:24px 0 54px}
+.toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:end;margin-bottom:18px}
+.eyebrow{margin:0 0 3px;color:var(--red-dark);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:0;font:800 36px/1 "Barlow Condensed",sans-serif}
+h2{margin-bottom:12px;font:800 24px/1.05 "Barlow Condensed",sans-serif}
+h3{font:700 20px/1.1 "Barlow Condensed",sans-serif}
+.date-control{display:grid;gap:5px;font-size:13px;font-weight:700}
+input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(--white);padding:9px 11px}
+.icon-button{width:48px;height:48px;border:1px solid #777d79;border-radius:4px;background:var(--white);font-size:23px;cursor:pointer}
+.notice{min-height:0;margin:0 0 14px;color:var(--muted);font-weight:600}
+.notice.error{color:#9b181e}
+.section{margin-top:20px;padding:20px 0;border-top:1px solid var(--line)}
+.next-panel{background:var(--ink);color:#fff;border-top:6px solid var(--red);padding:20px;border-radius:4px}
+.next-panel .eyebrow{color:#ff8588}
+.next-time{margin:0 0 2px;font:800 40px/1 "Barlow Condensed",sans-serif}
+.next-name{margin:0 0 14px;font:700 25px/1.1 "Barlow Condensed",sans-serif}
+.next-address{margin:0 0 12px;color:#e5e7e5;overflow-wrap:anywhere}
+.next-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin:0 0 12px}
+.next-meta dt{color:#bfc4c0;font-size:13px}
+.next-meta dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.next-notes{padding:12px;margin:14px 0 0;background:#282d2a;border-left:3px solid #a7aaa8;white-space:pre-wrap;overflow-wrap:anywhere}
+.next-notes strong{display:block;margin-bottom:3px;color:#d3d6d4;font-size:13px}
+.badge{display:inline-block;padding:4px 8px;border-radius:3px;background:#e5eee8;color:#145638;font-size:12px;font-weight:700}
+.badge.conflict{background:#f9dddd;color:#87181e}
+.badge.done{background:#e2e4e2;color:#414743}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}
+.action{min-height:48px;display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border:0;border-radius:4px;background:var(--red);color:#fff;text-decoration:none;font-weight:700;cursor:pointer}
+.action:hover{background:var(--red-dark)}
+.action.secondary{background:#fff;color:#171918;border:1px solid #b3b7b4}
+.action.secondary:hover{background:#e8e9e6}
+.action.complete{background:#146b45}
+.action.complete:hover{background:#0f5235}
+.action:disabled{opacity:.55;cursor:wait}
+.stop-list{display:grid;gap:10px}
+.stop{border:1px solid var(--line);border-left:5px solid #858b87;border-radius:3px;background:var(--white);padding:14px}
+.stop.conflict{border-left-color:var(--red);background:#fffafa}
+.stop.done{opacity:.75}
+.stop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.stop-time{margin:0 0 3px;font:700 22px/1 "Barlow Condensed",sans-serif}
+.stop h3{margin:0 0 8px;overflow-wrap:anywhere}
+.stop p{margin:0 0 7px;overflow-wrap:anywhere}
+.drive{color:var(--muted);font-size:14px;font-weight:600}
+.empty{padding:14px;border:1px dashed #aeb2ae;color:var(--muted)}
+.completed-list{display:grid;gap:8px}
+.completed-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.block-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
+.block-form label{display:grid;gap:5px;font-size:13px;font-weight:700}
+.block-form .full{grid-column:1/-1}
+.block-form button{grid-column:1/-1;justify-self:start}
+.block-list{display:grid;gap:0;margin:12px 0 0;padding:0;list-style:none}
+.block-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.block-row p{margin:0;overflow-wrap:anywhere}
+.block-row button{min-height:42px;border:1px solid #929793;border-radius:4px;background:transparent;padding:7px 10px;font-weight:700;cursor:pointer}
+.block-row button:hover{background:#e4e4df}
+@media(max-width:600px){.head-inner,.page{width:min(100% - 24px,900px)}.toolbar{grid-template-columns:minmax(0,1fr) auto;align-items:end}.toolbar-title{grid-column:1/-1}.date-control{grid-column:1}.icon-button{grid-column:2;grid-row:2}.next-panel{padding:16px}.next-time{font-size:36px}.next-meta{grid-template-columns:1fr}.actions .action{flex:1 1 130px}.block-form{gap:9px}.block-form input{min-width:0}.private{font-size:12px}}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="head-inner">
+    <div class="brand"><img src="/logo.jpg" alt=""><div><div class="brand-name">Yire Oil Service</div><div class="brand-sub">Panel del chofer</div></div></div>
+    <span class="private">Acceso privado</span>
+  </div>
+</header>
+<main class="page">
+  <div class="toolbar">
+    <div class="toolbar-title"><p class="eyebrow">Ruta del día</p><h1>Entregas</h1></div>
+    <label class="date-control" for="dayInput">Día<input id="dayInput" type="date" aria-label="Escoger día"></label>
+    <button class="icon-button" id="reloadButton" type="button" aria-label="Actualizar entregas" title="Actualizar">↻</button>
+  </div>
+  <p class="notice" id="notice" role="status" aria-live="polite"></p>
+
+  <section aria-labelledby="nextHeading">
+    <div class="next-panel">
+      <p class="eyebrow" id="nextHeading">Próxima entrega</p>
+      <div id="nextEmpty"><h2>No hay entregas pendientes</h2><p>Este día está libre.</p></div>
+      <div id="nextContent" hidden>
+        <p class="next-time" id="nextTime"></p>
+        <h2 class="next-name" id="nextName"></h2>
+        <p class="next-address" id="nextAddress"></p>
+        <dl class="next-meta">
+          <div><dt>Equipo</dt><dd id="nextEquipment"></dd></div>
+          <div><dt>Galones aprox.</dt><dd id="nextGallons"></dd></div>
+          <div><dt>Detalles</dt><dd id="nextDetails"></dd></div>
+          <div><dt>Tiempo estimado de manejo</dt><dd id="nextDrive"></dd></div>
+        </dl>
+        <p class="next-notes" id="nextNotes" hidden><strong>Notas para el chofer</strong><span id="nextNoteText"></span></p>
+        <div class="actions">
+          <a class="action" id="nextNavigate" target="_blank" rel="noopener">Navegar</a>
+          <a class="action secondary" id="nextCall">Llamar</a>
+          <button class="action complete" id="nextComplete" type="button">Hecho</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="routeHeading">
+    <h2 id="routeHeading">Después</h2>
+    <div class="stop-list" id="remainingStops"></div>
+  </section>
+
+  <details class="section" id="completedSection">
+    <summary><h2 style="display:inline">Entregas hechas</h2></summary>
+    <div class="completed-list" id="completedStops"></div>
+  </details>
+
+  <section class="section" aria-labelledby="blocksHeading">
+    <h2 id="blocksHeading">Bloquear tiempo</h2>
+    <form class="block-form" id="blockForm">
+      <label for="blockStart">Desde<input id="blockStart" type="time" required></label>
+      <label for="blockEnd">Hasta<input id="blockEnd" type="time" required></label>
+      <label class="full" for="blockNote">Motivo<input id="blockNote" maxlength="200" placeholder="Almuerzo, día libre, reparación"></label>
+      <button class="action" type="submit" id="blockSubmit">Agregar bloqueo</button>
+    </form>
+    <ul class="block-list" id="blockList"></ul>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { date: "", stops: [], blocks: [] };
+const equipmentEs = { "Dump truck": "Camión de volteo", "Semi / tractor-trailer": "Tractocamión / rastra", "RV / motorhome": "RV / casa rodante", Boat: "Bote", Other: "Otro" };
+
+function text(tag, className, value) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  element.textContent = value || "";
+  return element;
+}
+function fmtTime(minutes) {
+  const hour = Math.floor(minutes / 60);
+  return `${hour % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hour < 12 ? "a. m." : "p. m."}`;
+}
+function fmtDate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day, 12).toLocaleDateString("es-US", { weekday: "long", month: "long", day: "numeric" });
+}
+function message(value, error = false) {
+  $("notice").textContent = value;
+  $("notice").classList.toggle("error", error);
+}
+async function request(path, options = {}) {
+  const response = await fetch(path, { cache: "no-store", ...options });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("No se pudo validar el acceso privado. Vuelve a iniciar sesión.");
+    if (data.error === "block_conflicts_with_booking") throw new Error("Ese horario se cruza con una entrega reservada.");
+    if (data.error === "bad_block") throw new Error("Revisa las horas del bloqueo.");
+    throw new Error("No se pudo completar la solicitud. Intenta de nuevo.");
+  }
+  return data;
+}
+function mapUrl(stop) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address)}`;
+}
+function phoneUrl(stop) {
+  return `tel:${String(stop.phone || "").replace(/[^+\d]/g, "")}`;
+}
+function stopCard(stop) {
+  const isDone = stop.status === "completed";
+  const article = text("article", `stop${stop.status === "conflict" ? " conflict" : ""}${isDone ? " done" : ""}`);
+  const head = text("div", "stop-head");
+  const title = text("div", "");
+  title.append(text("p", "stop-time", fmtTime(stop.start_min)));
+  title.append(text("h3", "", stop.name));
+  head.append(title);
+  head.append(text("span", `badge${stop.status === "conflict" ? " conflict" : isDone ? " done" : ""}`, stop.status === "conflict" ? "Conflicto" : isDone ? "Hecha" : "Confirmada"));
+  article.append(head);
+  article.append(text("p", "", stop.address));
+  article.append(text("p", "", `${equipmentEs[stop.equipment] || stop.equipment}${stop.gallons ? ` · ${stop.gallons} gal` : ""}`));
+  article.append(text("p", "", stop.details));
+  if (stop.notes) article.append(text("p", "", `Notas: ${stop.notes}`));
+  article.append(text("p", "drive", `Manejo estimado: ${stop.drive_min} min`));
+  if (!isDone) {
+    const actions = text("div", "actions");
+    const navigate = text("a", "action secondary", "Navegar");
+    navigate.href = mapUrl(stop);
+    navigate.target = "_blank";
+    navigate.rel = "noopener";
+    const call = text("a", "action secondary", "Llamar");
+    call.href = phoneUrl(stop);
+    const done = text("button", "action complete", "Hecho");
+    done.type = "button";
+    done.addEventListener("click", () => markDone(stop.id, done));
+    actions.append(navigate, call, done);
+    article.append(actions);
+  }
+  return article;
+}
+function render() {
+  const stops = state.stops;
+  const next = stops.find((stop) => stop.status !== "completed");
+  $("nextEmpty").hidden = Boolean(next);
+  $("nextContent").hidden = !next;
+  $("routeHeading").textContent = next ? `Después · ${fmtDate(state.date)}` : `Ruta · ${fmtDate(state.date)}`;
+  $("remainingStops").replaceChildren();
+  $("completedStops").replaceChildren();
+  const upcoming = stops.filter((stop) => stop.status !== "completed");
+  for (const stop of upcoming.slice(next ? 1 : 0)) $("remainingStops").append(stopCard(stop));
+  const completed = stops.filter((stop) => stop.status === "completed");
+  for (const stop of completed) $("completedStops").append(stopCard(stop));
+  if (upcoming.length <= 1) $("remainingStops").append(text("p", "empty", next ? "No hay otra entrega después de esta." : "No quedan entregas pendientes."));
+  if (!completed.length) $("completedStops").append(text("p", "empty", "Todavía no hay entregas marcadas como hechas."));
+
+  if (next) {
+    $("nextTime").textContent = fmtTime(next.start_min);
+    $("nextName").textContent = next.name;
+    $("nextAddress").textContent = next.address;
+    $("nextEquipment").textContent = equipmentEs[next.equipment] || next.equipment;
+    $("nextGallons").textContent = next.gallons ? `${next.gallons} gal` : "No indicado";
+    $("nextDetails").textContent = next.details;
+    $("nextDrive").textContent = `${next.drive_min} min`;
+    $("nextNotes").hidden = !next.notes;
+    $("nextNoteText").textContent = next.notes || "";
+    $("nextNavigate").href = mapUrl(next);
+    $("nextCall").href = phoneUrl(next);
+    $("nextComplete").onclick = () => markDone(next.id, $("nextComplete"));
+    $("nextPanelStatus")?.remove();
+    if (next.status === "conflict") {
+      const badge = text("span", "badge conflict", "Conflicto");
+      badge.id = "nextPanelStatus";
+      $("nextHeading").after(badge);
+    }
+  } else {
+    $("nextPanelStatus")?.remove();
+  }
+
+  $("blockList").replaceChildren();
+  for (const block of state.blocks) {
+    const item = text("li", "block-row");
+    const description = text("p", "", `${fmtTime(block.start_min)} – ${block.end_min === 1440 ? "12:00 a. m." : fmtTime(block.end_min)}${block.note ? ` · ${block.note}` : ""}`);
+    const remove = text("button", "", "Eliminar");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Eliminar bloqueo ${fmtTime(block.start_min)}`);
+    remove.addEventListener("click", () => deleteBlock(block.id));
+    item.append(description, remove);
+    $("blockList").append(item);
+  }
+  if (!state.blocks.length) $("blockList").append(text("li", "empty", "No hay bloqueos para este día."));
+}
+async function loadDay(date = "") {
+  message("Cargando entregas…");
+  try {
+    const data = await request(`/api/driver/day${date ? `?date=${encodeURIComponent(date)}` : ""}`);
+    state.date = data.date;
+    state.stops = data.stops || [];
+    state.blocks = data.blocks || [];
+    $("dayInput").value = state.date;
+    render();
+    message("");
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+async function markDone(id, button) {
+  if (!confirm("¿Marcar esta entrega como hecha? No se puede deshacer desde aquí.")) return;
+  button.disabled = true;
+  try {
+    await request("/api/driver/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
+    await loadDay(state.date);
+  } catch (error) {
+    message(error.message, true);
+    button.disabled = false;
+  }
+}
+async function deleteBlock(id) {
+  try {
+    await request(`/api/driver/blocks/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await loadDay(state.date);
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+function toMinutes(value, end = false) {
+  if (end && value === "00:00") return 1440;
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+$("dayInput").addEventListener("change", () => loadDay($("dayInput").value));
+$("reloadButton").addEventListener("click", () => loadDay(state.date));
+$("blockForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = $("blockSubmit");
+  button.disabled = true;
+  try {
+    await request("/api/driver/blocks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date: state.date, start_min: toMinutes($("blockStart").value), end_min: toMinutes($("blockEnd").value, true), note: $("blockNote").value })
+    });
+    $("blockForm").reset();
+    await loadDay(state.date);
+  } catch (error) {
+    message(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+loadDay();
+</script>
+</body>
+</html>

@@ -1,43 +1,53 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "yire-oil",
-  "main": "src/index.js",
-  "compatibility_date": "2026-06-01",
-
-  // Static site in ./public. Only /api/* runs the Worker first; everything else is served straight from assets.
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
-  },
-
-  // Create with: npx wrangler d1 create yire-oil   then paste the database_id it prints here.
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "yire-oil",
-      "database_id": "REPLACE_WITH_DATABASE_ID",
-      "migrations_dir": "migrations"
-    }
-  ],
-
-  // Releases unpaid holds and deletes their Square payment links.
-  "triggers": { "crons": ["*/5 * * * *"] },
-
-  "vars": {
-    // "sandbox" for testing with Square's fake cards, "production" for real money.
-    "SQUARE_ENV": "sandbox",
-    "SITE_URL": "https://yire-oil.skywayhighwaygames.workers.dev",
-    // Where new-booking emails go (your stepdad).
-    "NOTIFY_EMAIL": "REPLACE_WITH_HIS_EMAIL",
-    // Resend sender. onboarding@resend.dev only delivers to your own Resend account email;
-    // verify a domain in Resend to send to anyone (e.g. "Yire Oil <reservas@yireoil.com>").
-    "FROM_EMAIL": "Yire Oil <onboarding@resend.dev>"
-  }
-
-  // Secrets (never in this file):
-  //   npx wrangler secret put SQUARE_ACCESS_TOKEN
-  //   npx wrangler secret put SQUARE_LOCATION_ID
-  //   npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
-  //   npx wrangler secret put RESEND_API_KEY
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "yire-oil",
+	"main": "src/index.js",
+	"compatibility_date": "2026-06-01",
+	// Static site in ./public. Only /api/* runs the Worker first; everything else is served straight from assets.
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*",
+			"/chofer*"
+		]
+	},
+	// Custom domain (added in the dashboard). Keep workers.dev on while SITE_URL and the Square webhook use it.
+	"routes": [
+		{ "pattern": "yireoilservices.com", "custom_domain": true }
+	],
+	"workers_dev": true,
+	// Create with: npx wrangler d1 create yire-oil   then paste the database_id it prints here.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "yire-oil",
+			"database_id": "c7c638fb-536d-4b29-a3d3-8f69ca15abce",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Releases unpaid holds and deletes their Square payment links.
+	"triggers": {
+		"crons": [
+			"*/5 * * * *"
+		]
+	},
+	"vars": {
+		// "sandbox" for testing with Square's fake cards, "production" for real money.
+		"SQUARE_ENV": "sandbox",
+		"SITE_URL": "https://yire-oil.skywayhighwaygames.workers.dev",
+		// Where new-booking emails go (your stepdad).
+		"NOTIFY_EMAIL": "ninjakiller231@gmail.com",
+		// Resend sender. onboarding@resend.dev only delivers to your own Resend account email;
+		// verify a domain in Resend to send to anyone (e.g. "Yire Oil <reservas@yireoil.com>").
+		"FROM_EMAIL": "Yire Oil <onboarding@resend.dev>",
+		// Set both after creating the Cloudflare Access self-hosted application.
+		"ACCESS_TEAM_DOMAIN": "skywayhighway.cloudflareaccess.com",
+		"ACCESS_AUD": "286c6a1eb637884116716a4f5f7260395ce74dd8878ada312994dabc3538aa2b"
+	}
+	// Secrets (never in this file):
+	//   npx wrangler secret put SQUARE_ACCESS_TOKEN
+	//   npx wrangler secret put SQUARE_LOCATION_ID
+	//   npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
+	//   npx wrangler secret put RESEND_API_KEY
 }

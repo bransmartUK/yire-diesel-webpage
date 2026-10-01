@@ -3,6 +3,7 @@ import { ZIP_INDEX } from "./zips.js";
 import { nowLocal, availabilityMap, openSlots, windowEnd, isValidStart, dayOfWeek } from "./schedule.js";
 import { createPaymentLink, deletePaymentLink, verifySquareSignature } from "./square.js";
 import { notifyDriver, notifyCustomer, fmtDate, fmtTime } from "./email.js";
+import { handleDriverApi, verifyAccessRequest } from "./driver.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -20,6 +21,12 @@ export default {
       if (url.pathname === "/api/availability" && req.method === "GET") return await availability(url, env);
       if (url.pathname === "/api/checkout" && req.method === "POST") return await checkout(req, env);
       if (url.pathname === "/api/square-webhook" && req.method === "POST") return await webhook(req, env, ctx);
+      if (url.pathname.startsWith("/api/driver/")) return await handleDriverApi(req, env);
+      if (/^\/chofer(?:\/|$)/.test(url.pathname)) {
+        if (!(await verifyAccessRequest(req, env))) return json({ error: "unauthorized" }, 401);
+        // Assets serve /chofer/ as index.html; asking for /chofer/index.html directly would 307 back to /chofer/.
+        return env.ASSETS.fetch(req);
+      }
       const m = url.pathname.match(/^\/api\/booking\/([0-9a-f-]{36})$/);
       if (m && req.method === "GET") return await bookingStatus(m[1], env);
       if (url.pathname === "/api/mock-pay" && env.SQUARE_ENV === "mock") return await mockPay(url, env, ctx);
@@ -38,12 +45,13 @@ export default {
 
 /* ---------------- data ---------------- */
 
-// Bookings that occupy the truck: paid, conflict (paid, needs a call), or held and still within the hold.
+// Bookings that occupy the truck: paid, conflict (paid, needs a call), completed by the driver,
+// or held and still within the hold.
 async function activeBookings(env, fromDate, toDate, { excludeId = null } = {}) {
   const { results } = await env.DB.prepare(
     `SELECT id, date, start_min, lat, lng, status, created_at FROM bookings
      WHERE date BETWEEN ?1 AND ?2
-       AND (status IN ('confirmed','conflict') OR (status = 'pending' AND hold_expires > ?3))
+       AND (status IN ('confirmed','conflict','completed') OR (status = 'pending' AND hold_expires > ?3))
        AND (?4 IS NULL OR id <> ?4)`
   ).bind(fromDate, toDate, Date.now(), excludeId).all();
   return results;
@@ -179,7 +187,9 @@ async function webhook(req, env, ctx) {
 
 async function confirmPaid(env, ctx, orderId, paymentId) {
   const b = await env.DB.prepare(`SELECT * FROM bookings WHERE square_order_id = ?1`).bind(orderId).first();
-  if (!b || b.status === "confirmed" || b.status === "conflict") return; // unknown order, or already handled
+  // Unknown order, or already handled. Square also sends payment.updated for refunds, so a completed
+  // stop must not fall through and get flipped back to confirmed.
+  if (!b || ["confirmed", "conflict", "completed"].includes(b.status)) return;
 
   let next = "confirmed";
   if (b.status !== "pending" || b.hold_expires <= Date.now()) {
