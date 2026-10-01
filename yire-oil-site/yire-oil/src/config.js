@@ -14,6 +14,6 @@ export const CONFIG = {
   openDays: [0, 1, 2, 3, 4, 5, 6], // 0 = Sunday
   bookAheadDays: 60,
   minLeadMin: 60,         // no booking that starts within the next hour
-  depositCents: 500,      // $5.00
+  depositCents: 5000,     // $50.00
   holdMinutes: 30         // how long a slot is held while the customer is on Square's checkout
 };

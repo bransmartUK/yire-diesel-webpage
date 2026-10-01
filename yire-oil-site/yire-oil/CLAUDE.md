@@ -1,6 +1,6 @@
 # Yire Oil Service — booking site
 
-Booking website for **Yire Oil Service LLC**, my stepdad's diesel delivery business in South Florida (owner/driver: Livan Miranda, (786) 259-7666, USDOT 4600167). Customers book a delivery time, pay a **$5 non-refundable reservation fee** through **Square**, and he drives a 2,500-gal tank truck to them. Main customers: dump trucks, semis, RVs, and boats at marinas. Diesel only.
+Booking website for **Yire Oil Service LLC**, my stepdad's diesel delivery business in South Florida (owner/driver: Livan Miranda, (786) 259-7666, USDOT 4600167). Customers book a delivery time, pay a **$50 non-refundable reservation fee** through **Square**, and he drives a 2,500-gal tank truck to them. Main customers: dump trucks, semis, RVs, and boats at marinas. Diesel only.
 
 I'm Bran, a developer (Java/JS background). I want direct, concrete code changes with a short explanation of *why* — not long write-ups or generated report files.
 
@@ -8,7 +8,7 @@ I'm Bran, a developer (Java/JS background). I want direct, concrete code changes
 
 - **Cloudflare Worker** (`yire-oil`) serving static assets from `public/` + an API under `/api/*` (`run_worker_first: ["/api/*"]`).
 - **D1** database `yire-oil` (binding `DB`), migrations in `migrations/`.
-- **Square Checkout API** (payment links) for the $5 deposit; **webhook** `payment.updated` confirms bookings.
+- **Square Checkout API** (payment links) for the $50 deposit (`depositCents` in config.js + `depositUSD` in index.html); **webhook** `payment.updated` confirms bookings.
 - **Resend** for email (optional; skipped with a log line if `RESEND_API_KEY` is unset).
 - **Cron** every 5 min releases unpaid holds.
 - Live at `https://yire-oil.skywayhighwaygames.workers.dev` and **`https://yireoilservices.com`** (zone on Cloudflare, apex already serves this Worker; no `www` record, no MX yet). `SITE_URL` still points at workers.dev, so Square redirects/webhooks use that.
@@ -36,7 +36,7 @@ wrangler.jsonc         Config, vars, D1 binding, cron
 
 1. Customer enters ZIP → `GET /api/availability?zip=` returns `{zip, city, today, days: {'YYYY-MM-DD': [startMin...]}}` for the next 60 days. Out-of-area ZIP → 400 `out_of_area`.
 2. Picks day/time, fills form (name, phone, email, address/marina, equipment type, approx gallons, details, notes, non-refundable checkbox).
-3. `POST /api/checkout` → validates, re-checks slot, inserts a **pending hold** (30 min), re-checks against earlier holds (race guard; later one gets 409 `slot_taken`), creates a Square payment link (quick_pay, $5, `redirect_url = SITE_URL/?booking=<id>`), returns `{url}`. Browser redirects to Square.
+3. `POST /api/checkout` → validates, re-checks slot, inserts a **pending hold** (30 min), re-checks against earlier holds (race guard; later one gets 409 `slot_taken`), creates a Square payment link (quick_pay, $50, `redirect_url = SITE_URL/?booking=<id>`), returns `{url}`. Browser redirects to Square.
 4. Square calls `POST /api/square-webhook` (HMAC-SHA256 of `notificationUrl + rawBody`, header `x-square-hmacsha256-signature`). On `COMPLETED`, booking → `confirmed`, emails sent. Idempotent for duplicate webhooks.
 5. Customer returns to `/?booking=<id>`; the page polls `GET /api/booking/:id` (returns only status, date, start, first name, lang — no PII) and shows "Ya está reservado."
 6. Cron: pending holds past `hold_expires` → `expired`, Square link deleted.
@@ -100,4 +100,4 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 - `wrangler tail` fails with "Cannot tail a Worker which only has assets" if the deployed version has no `main` script — redeploy.
 - Webhook URL in Square must match `SITE_URL/api/square-webhook` exactly (https, no trailing slash) or signatures fail (401).
 - Sandbox vs Production in Square have separate tokens, locations, and webhook subscriptions/keys.
-- Square online processing on his free plan: 3.3% + 30¢ (~47¢ per $5 deposit).
+- Square online processing on his free plan: 3.3% + 30¢ (~$1.95 per $50 deposit).

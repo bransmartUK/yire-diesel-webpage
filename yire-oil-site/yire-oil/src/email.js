@@ -40,7 +40,7 @@ export async function notifyDriver(env, b, { conflict = false } = {}) {
   const banner = conflict
     ? `<p style="background:#fde8e8;border-left:4px solid #D21F26;padding:10px 12px;margin:0 0 16px">
          <b>Atención:</b> este cliente pagó después de que su reserva expiró y esa hora ya estaba tomada.
-         Llámalo para buscar otra hora o reembolsar los $5 desde Square.</p>`
+         Llámalo para buscar otra hora o reembolsar los $${(b.deposit_cents / 100).toFixed(2)} desde Square.</p>`
     : "";
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#111;max-width:560px">
     ${banner}

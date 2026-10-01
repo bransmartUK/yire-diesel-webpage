@@ -268,7 +268,7 @@ const CONFIG = {
   openDays: [0,1,2,3,4,5,6], // 0=Sun ... 6=Sat. Every day.
   bookAheadDays: 60,        // how far out people can book
   minLeadMin: 60,           // can't book a slot starting within this many minutes
-  depositUSD: 5
+  depositUSD: 50
 };
 
 /* =====================================================================
@@ -685,7 +685,7 @@ $("detailsForm").addEventListener("submit", async e=>{
   const resetBtn = () => { btn.disabled=false; btn.textContent=tx("payBtn", CONFIG.depositUSD); };
 
   /* ---- Live: the server holds the slot and returns a Square checkout link.
-     The booking is only confirmed when Square's webhook says the $5 was paid. ---- */
+     The booking is only confirmed when Square's webhook says the deposit was paid. ---- */
   if(API){
     try{
       const r = await fetch("/api/checkout", {
