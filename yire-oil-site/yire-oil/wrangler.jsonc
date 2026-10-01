@@ -12,7 +12,9 @@
 			"/chofer*"
 		]
 	},
-	// Custom domain (added in the dashboard). Keep workers.dev on while SITE_URL and the Square webhook use it.
+	// Saves console logs/errors (payments, emails, push) so they can be searched in the dashboard later.
+	"observability": { "enabled": true },
+	// Custom domain (added in the dashboard). workers.dev stays on so links in older emails keep working.
 	"routes": [
 		{ "pattern": "yireoilservices.com", "custom_domain": true }
 	],
@@ -34,8 +36,8 @@
 	},
 	"vars": {
 		// "sandbox" for testing with Square's fake cards, "production" for real money.
-		"SQUARE_ENV": "sandbox",
-		"SITE_URL": "https://yire-oil.skywayhighwaygames.workers.dev",
+		"SQUARE_ENV": "production",
+		"SITE_URL": "https://yireoilservices.com",
 		// Where new-booking emails go (your stepdad).
 		"NOTIFY_EMAIL": "livanmiranda01@gmail.com",
 		// Resend sender on the verified domain. Replies to reservas@ are forwarded to Gmail by Cloudflare Email Routing.

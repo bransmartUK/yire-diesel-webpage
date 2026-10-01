@@ -11,7 +11,7 @@ I'm Bran, a developer (Java/JS background). I want direct, concrete code changes
 - **Square Checkout API** (payment links) for the $50 deposit (`depositCents` in config.js + `depositUSD` in index.html); **webhook** `payment.updated` confirms bookings.
 - **Resend** for email (optional; skipped with a log line if `RESEND_API_KEY` is unset).
 - **Cron** every 5 min releases unpaid holds.
-- Live at `https://yire-oil.skywayhighwaygames.workers.dev` and **`https://yireoilservices.com`** (zone on Cloudflare, apex already serves this Worker; no `www` record, no MX yet). `SITE_URL` still points at workers.dev, so Square redirects/webhooks use that.
+- Live at `https://yire-oil.skywayhighwaygames.workers.dev` and **`https://yireoilservices.com`** (zone on Cloudflare, apex serves this Worker; no `www` record). `SITE_URL` = the custom domain (email links, Square redirect, webhook signature URL).
 - I'm on **Windows / PowerShell**. Use `npx wrangler ...` (or `npx.cmd` if execution policy complains).
 
 ## Files
@@ -96,9 +96,7 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 - ✅ Deployed with D1 + cron. Square **sandbox** end-to-end test passed (checkout → webhook 200 → confirmed → return page).
 - ✅ Square sandbox app is under **my** Square account (fine for testing).
 - ✅ Email: Resend domain `yireoilservices.com` (records on `send` + `resend._domainkey`, added via Resend's Cloudflare sign-in), `FROM_EMAIL` = `reservas@yireoilservices.com`, `NOTIFY_EMAIL` = my stepdad's Gmail. Cloudflare Email Routing forwards `reservas@` to his Gmail (MX on apex). DMARC `p=none` on `_dmarc`.
-- ⏳ **Production Square** must be set up **signed in as my stepdad** (his seller account) so deposits go to him: create app → Production access token + Location ID → webhook subscription (`payment.updated`, exact URL) → set the 3 secrets → `SQUARE_ENV: "production"` → deploy. Don't use OAuth; one-business setup.
-- ⏳ Custom domain `yireoilservices.com` is attached. Still to do: switch `SITE_URL` + Square webhook subscription URL together (or set `SQUARE_WEBHOOK_URL` to the old URL meanwhile), then consider disabling workers.dev. (Email domain + contact email are done.)
-- 🧹 A sandbox test booking (name "vewv", Fri Oct 2 1:00 AM) may still be blocking that slot — cancel with `UPDATE bookings SET status='cancelled' WHERE name='vewv'`.
+- ✅ Production cutover (2026-10-01): `SQUARE_ENV: "production"`, Square app under my stepdad's seller account, webhook subscription `https://yireoilservices.com/api/square-webhook` (`payment.updated`), `SQUARE_WEBHOOK_URL` removed. Workers Logs on (`observability`). Sandbox test bookings cancelled. workers.dev stays on for older email links; disable later.
 
 ## Driver page
 
