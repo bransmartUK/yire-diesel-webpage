@@ -1,6 +1,7 @@
 import { CONFIG } from "./config.js";
 import { ZIP_INDEX } from "./zips.js";
 import { nowLocal, travelMin } from "./schedule.js";
+import { b64uDecode, sendPush, vapidPublicKey } from "./push.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -136,6 +137,31 @@ async function createBlock(req, env) {
   return json({ id }, 201);
 }
 
+// Only real browser push services, so the Worker never POSTs to arbitrary URLs.
+const PUSH_HOSTS = /^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)$/i;
+
+function decodedLength(value) {
+  try { return typeof value === "string" && /^[A-Za-z0-9_-]+={0,2}$/.test(value) ? b64uDecode(value).length : 0; }
+  catch { return 0; }
+}
+
+async function savePushSubscription(req, env) {
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
+  const endpoint = typeof body.endpoint === "string" ? body.endpoint : "";
+  let host = "";
+  try { const url = new URL(endpoint); if (url.protocol === "https:") host = url.hostname; } catch {}
+  const { p256dh, auth } = body.keys || {};
+  if (!PUSH_HOSTS.test(host) || endpoint.length > 1000 || decodedLength(p256dh) !== 65 || decodedLength(auth) !== 16) {
+    return json({ error: "bad_subscription" }, 400);
+  }
+  await env.DB.prepare(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`
+  ).bind(endpoint, p256dh, auth, Date.now()).run();
+  return json({ ok: true });
+}
+
 export async function handleDriverApi(req, env) {
   if (!(await verifyAccessRequest(req, env))) return json({ error: "unauthorized" }, 401);
   const url = new URL(req.url);
@@ -148,6 +174,17 @@ export async function handleDriverApi(req, env) {
   }
   if (url.pathname === "/api/driver/complete" && req.method === "POST") return completeStop(req, env);
   if (url.pathname === "/api/driver/blocks" && req.method === "POST") return createBlock(req, env);
+  if (url.pathname === "/api/driver/push/key" && req.method === "GET") {
+    const key = await vapidPublicKey(env);
+    return key ? json({ key }) : json({ error: "push_not_configured" }, 503);
+  }
+  if (url.pathname === "/api/driver/push/subscribe" && req.method === "POST") return savePushSubscription(req, env);
+  if (url.pathname === "/api/driver/push/test" && req.method === "POST") {
+    if (!(await vapidPublicKey(env))) return json({ error: "push_not_configured" }, 503);
+    return json(await sendPush(env, {
+      title: "Prueba de avisos", body: "Los avisos de Yire Oil funcionan en este teléfono.", url: "/chofer/", tag: "test"
+    }));
+  }
   const blockMatch = url.pathname.match(/^\/api\/driver\/blocks\/([0-9a-f-]{36})$/i);
   if (blockMatch && req.method === "DELETE") {
     const result = await env.DB.prepare(`DELETE FROM blocks WHERE id = ?1`).bind(blockMatch[1]).run();

@@ -4,6 +4,7 @@ import { nowLocal, availabilityMap, openSlots, windowEnd, isValidStart, dayOfWee
 import { createPaymentLink, deletePaymentLink, verifySquareSignature } from "./square.js";
 import { notifyDriver, notifyCustomer, fmtDate, fmtTime } from "./email.js";
 import { handleDriverApi, verifyAccessRequest } from "./driver.js";
+import { notifyDriverPush } from "./push.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -206,6 +207,7 @@ async function confirmPaid(env, ctx, orderId, paymentId) {
   const updated = { ...b, status: next };
   ctx.waitUntil(Promise.all([
     notifyDriver(env, updated, { conflict: next === "conflict" }),
+    notifyDriverPush(env, updated, { conflict: next === "conflict" }),
     next === "confirmed" ? notifyCustomer(env, updated) : Promise.resolve()
   ]).catch((e) => console.error(e)));
 }

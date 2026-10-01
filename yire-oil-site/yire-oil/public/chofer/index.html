@@ -39,6 +39,9 @@ input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(
 .icon-button{width:48px;height:48px;border:1px solid #777d79;border-radius:4px;background:var(--white);font-size:23px;cursor:pointer}
 .notice{min-height:0;margin:0 0 14px;color:var(--muted);font-weight:600}
 .notice.error{color:#9b181e}
+.push-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:12px 14px;background:var(--white);border:1px solid var(--line);border-left:5px solid var(--red);border-radius:3px}
+.push-panel p{margin:0;font-weight:600}
+.push-panel .action{flex:none}
 .section{margin-top:20px;padding:20px 0;border-top:1px solid var(--line)}
 .next-panel{background:var(--ink);color:#fff;border-top:6px solid var(--red);padding:20px;border-radius:4px}
 .next-panel .eyebrow{color:#ff8588}
@@ -99,6 +102,10 @@ input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(
     <button class="icon-button" id="reloadButton" type="button" aria-label="Actualizar entregas" title="Actualizar">↻</button>
   </div>
   <p class="notice" id="notice" role="status" aria-live="polite"></p>
+  <div class="push-panel" id="pushPanel" hidden>
+    <p id="pushText"></p>
+    <button class="action" id="pushButton" type="button" hidden></button>
+  </div>
 
   <section aria-labelledby="nextHeading">
     <div class="next-panel">
@@ -175,6 +182,7 @@ async function request(path, options = {}) {
     if (response.status === 401) throw new Error("No se pudo validar el acceso privado. Vuelve a iniciar sesión.");
     if (data.error === "block_conflicts_with_booking") throw new Error("Ese horario se cruza con una entrega reservada.");
     if (data.error === "bad_block") throw new Error("Revisa las horas del bloqueo.");
+    if (data.error === "push_not_configured") throw new Error("Los avisos todavía no están configurados en el servidor.");
     throw new Error("No se pudo completar la solicitud. Intenta de nuevo.");
   }
   return data;
@@ -306,8 +314,99 @@ function toMinutes(value, end = false) {
   return hour * 60 + minute;
 }
 
+/* ---- Push notifications ---- */
+function base64UrlToBytes(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64 + "=".repeat((4 - base64.length % 4) % 4)), (char) => char.charCodeAt(0));
+}
+function sameBytes(a, b) {
+  const left = new Uint8Array(a);
+  return left.length === b.length && left.every((value, index) => value === b[index]);
+}
+function pushView(value, buttonLabel = "", action = null) {
+  $("pushPanel").hidden = false;
+  $("pushText").textContent = value;
+  $("pushButton").hidden = !buttonLabel;
+  $("pushButton").textContent = buttonLabel;
+  $("pushButton").onclick = action;
+}
+const pushOn = () => pushView("Avisos activados en este teléfono.", "Probar aviso", testPush);
+async function saveSubscription(subscription) {
+  await request("/api/driver/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(subscription) });
+}
+async function initPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    const iPhone = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    pushView(iPhone
+      ? "Para recibir avisos: toca Compartir → Agregar a pantalla de inicio, y abre Yire Chofer desde ese ícono."
+      : "Este navegador no permite avisos. Usa Chrome.");
+    return;
+  }
+  try {
+    const registration = await navigator.serviceWorker.register("/chofer/sw.js", { scope: "/chofer/" });
+    if (Notification.permission === "denied") {
+      pushView("Los avisos están bloqueados. Actívalos en los ajustes del teléfono para esta app.");
+      return;
+    }
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      // If the server key changed, the old subscription can't receive pushes anymore.
+      const { key } = await request("/api/driver/push/key");
+      const current = subscription.options?.applicationServerKey;
+      if (current && !sameBytes(current, base64UrlToBytes(key))) {
+        await subscription.unsubscribe();
+        subscription = null;
+      }
+    }
+    if (subscription && Notification.permission === "granted") {
+      await saveSubscription(subscription);
+      pushOn();
+    } else {
+      pushView("Recibe un aviso en este teléfono cuando alguien reserve.", "Activar avisos", enablePush);
+    }
+  } catch (error) {
+    pushView(error.message || "No se pudieron preparar los avisos.", "Reintentar", initPush);
+  }
+}
+async function enablePush() {
+  const button = $("pushButton");
+  button.disabled = true;
+  try {
+    // Must be the first await so it still counts as a tap (iPhone requires that).
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      pushView("Los avisos no se activaron. Puedes permitirlos en los ajustes del teléfono.", permission === "default" ? "Activar avisos" : "", permission === "default" ? enablePush : null);
+      return;
+    }
+    const { key } = await request("/api/driver/push/key");
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(key) });
+    await saveSubscription(subscription);
+    pushOn();
+  } catch (error) {
+    message(error.message || "No se pudieron activar los avisos.", true);
+  } finally {
+    button.disabled = false;
+  }
+}
+async function testPush() {
+  const button = $("pushButton");
+  button.disabled = true;
+  try {
+    const result = await request("/api/driver/push/test", { method: "POST" });
+    message(result.sent ? "Aviso de prueba enviado. Debe llegar en unos segundos." : "No se envió ningún aviso. Toca Activar avisos otra vez.", !result.sent);
+    if (!result.sent) pushView("Recibe un aviso en este teléfono cuando alguien reserve.", "Activar avisos", enablePush);
+  } catch (error) {
+    message(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 $("dayInput").addEventListener("change", () => loadDay($("dayInput").value));
 $("reloadButton").addEventListener("click", () => loadDay(state.date));
+// Coming back to the app (e.g. from a notification) shows fresh stops.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.date) loadDay(state.date); });
 $("blockForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $("blockSubmit");
@@ -326,7 +425,8 @@ $("blockForm").addEventListener("submit", async (event) => {
     button.disabled = false;
   }
 });
-loadDay();
+loadDay(new URLSearchParams(location.search).get("date") || "");
+initPush();
 </script>
 </body>
 </html>

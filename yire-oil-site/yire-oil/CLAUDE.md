@@ -75,7 +75,7 @@ npx wrangler secret list
 npx wrangler d1 execute yire-oil --remote --command "SELECT date, start_min, status, name FROM bookings"
 ```
 
-Secrets (set with `npx wrangler secret put NAME`, never in files or chat): `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `RESEND_API_KEY`.
+Secrets (set with `npx wrangler secret put NAME`, never in files or chat): `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `RESEND_API_KEY`, `VAPID_PRIVATE_JWK`.
 Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_URL`, `NOTIFY_EMAIL`, `FROM_EMAIL`. Optional: `SQUARE_VERSION`, `SQUARE_WEBHOOK_URL` (if it must differ from `SITE_URL/api/square-webhook`).
 
 ## Status (as of 2026-10-01)
@@ -93,6 +93,7 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 - `/api/driver/*` is in `src/driver.js`: day stops and drive estimates, mark complete, and create/delete time blocks. Conflicting paid or unexpired held bookings prevent a new block.
 - Before deploying, create a Cloudflare Access self-hosted application protecting `/chofer*` and `/api/driver/*`, with an email one-time-code allow policy. Self-hosted apps can target the workers.dev hostname + path (no custom domain needed). Do **not** use Worker-level or account-wide Access — that locks the whole site and the Square webhook. Set `ACCESS_TEAM_DOMAIN` to the Access team hostname (for example, `team.cloudflareaccess.com`) and `ACCESS_AUD` to the app's audience tag in `wrangler.jsonc`. The Worker verifies the JWT signature, issuer, audience, and expiry; unset values deny access.
 - Apply `migrations/0002_driver_completion.sql` before deploying the Worker; it adds `completed_at`. Use `npm run db:migrate:local` for the local database. Ask before applying remote migrations or deploying.
+- **Web Push** (`src/push.js`, `public/chofer/sw.js`, `migrations/0003_push_subscriptions.sql`): the driver taps "Activar avisos" on `/chofer/`; every confirmed/conflict booking sends a notification that opens that day. VAPID + aes128gcm done with WebCrypto (no libs). Needs secret `VAPID_PRIVATE_JWK` (`node scripts/vapid-keygen.mjs | npx.cmd wrangler secret put VAPID_PRIVATE_JWK`); without it pushes are skipped with a log line. Subscriptions are limited to known push-service hosts; 404/410 responses delete them. "Probar aviso" calls `/api/driver/push/test`. iPhone needs iOS 16.4+ and the page added to the Home Screen.
 - Later ideas: add each confirmed booking to his Google Calendar; 7 AM daily summary email; SMS needs A2P 10DLC registration first.
 
 ## Gotchas

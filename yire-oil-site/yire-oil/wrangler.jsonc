@@ -50,4 +50,5 @@
 	//   npx wrangler secret put SQUARE_LOCATION_ID
 	//   npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
 	//   npx wrangler secret put RESEND_API_KEY
+	//   node scripts/vapid-keygen.mjs | npx.cmd wrangler secret put VAPID_PRIVATE_JWK
 }

@@ -2,3 +2,5 @@
 SQUARE_ENV=mock
 SITE_URL=http://localhost:8787
 SQUARE_WEBHOOK_SIGNATURE_KEY=test-signature-key
+# Optional, for Web Push: paste the output of `node scripts/vapid-keygen.mjs` (single line).
+# VAPID_PRIVATE_JWK=
