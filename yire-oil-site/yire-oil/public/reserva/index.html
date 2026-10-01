@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Tu reserva | Yire Oil Service</title>
+<link rel="icon" href="/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#D21F26; --red-deep:#9E1218; --black:#000000; --paper:#FFFFFF;
+  --concrete:#ECEAE5; --ink:#1A1D1C; --muted:#5B625F; --line:#D3D0C8;
+  --ok:#0F7A4E; --bad:#B3261E; --slot:#FFFFFF;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --paper:#16201D; --concrete:#1E2A26; --ink:#EEF1EF; --muted:#A7B2AD; --line:#33433D;
+  --slot:#22302B; --ok:#4FC28B; --bad:#FF8A80;
+}}
+:root[data-theme="dark"]{
+  --paper:#16201D; --concrete:#1E2A26; --ink:#EEF1EF; --muted:#A7B2AD; --line:#33433D;
+  --slot:#22302B; --ok:#4FC28B; --bad:#FF8A80;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none !important}
+body{margin:0; background:var(--concrete); color:var(--ink); font:400 17px/1.6 Barlow, "Helvetica Neue", Arial, sans-serif}
+h1,h2{font-family:"Barlow Condensed", "Arial Narrow", Arial, sans-serif; font-weight:800; line-height:1.05; margin:0 0 10px}
+h1{font-size:clamp(34px,7vw,46px)} h2{font-size:28px}
+a{color:inherit; text-decoration-color:var(--red); text-decoration-thickness:2px; text-underline-offset:3px}
+button,input,select{font:inherit; color:inherit}
+:focus-visible{outline:3px solid var(--red); outline-offset:3px}
+.wrap{max-width:720px; margin:0 auto; padding:0 16px}
+.masthead{background:var(--black)}
+.masthead .wrap{padding-top:10px; padding-bottom:10px}
+.logo{display:block; height:64px; width:auto}
+.stripe{height:12px; background:repeating-linear-gradient(90deg,var(--red) 0 34px,#fff 34px 68px); border-block:3px solid var(--black)}
+main{padding:28px 0 56px}
+.card{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:clamp(18px,4vw,28px); margin-bottom:16px}
+.when{font:800 clamp(26px,5vw,32px)/1.1 "Barlow Condensed",sans-serif; margin:0 0 6px}
+.muted{color:var(--muted)}
+.banner{border-left:6px solid var(--red); background:var(--concrete); padding:12px 14px; border-radius:0 6px 6px 0; margin:14px 0 0; font-weight:600}
+.btn{display:inline-block; border:0; cursor:pointer; font:600 17px/1 Barlow,sans-serif; padding:15px 22px; border-radius:6px; background:var(--red); color:#fff; margin-top:16px}
+.btn:hover{background:var(--red-deep)}
+.btn[disabled]{opacity:.45; cursor:not-allowed}
+.btn.danger{background:transparent; color:var(--bad); box-shadow:inset 0 0 0 2px currentColor}
+.btn.danger:hover{background:var(--concrete)}
+label{display:block; font-weight:600; font-size:15px; margin:14px 0 5px}
+select{background:var(--paper); border:1.5px solid var(--line); border-radius:6px; padding:12px 14px; width:100%}
+.times{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:6px}
+.time{padding:10px 4px; border:1.5px solid var(--line); background:var(--slot); border-radius:6px; cursor:pointer; font-weight:600}
+.time[aria-pressed="true"]{background:var(--red); border-color:var(--red); color:#fff}
+.check{display:flex; gap:10px; align-items:flex-start; font-weight:400; font-size:16px; margin-top:12px}
+.check input{width:20px; height:20px; margin-top:3px; flex:none}
+.msg{font-weight:600; margin:12px 0 0}
+.msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)}
+.msg:empty{display:none}
+</style>
+</head>
+<body>
+<header class="masthead"><div class="wrap"><a href="/"><img class="logo" src="/logo.jpg" alt="Yire Oil Service LLC" width="600" height="600"></a></div></header>
+<div class="stripe" aria-hidden="true"></div>
+
+<main class="wrap">
+  <section class="card" id="summaryCard">
+    <h1 id="title"></h1>
+    <p class="when" id="when"></p>
+    <p class="muted" id="where"></p>
+    <p class="banner" id="statusNote" hidden></p>
+    <p class="msg" id="flash" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" id="changeCard" hidden>
+    <h2 id="changeTitle"></h2>
+    <p id="changeIntro"></p>
+    <div id="changeForm">
+      <label for="daySelect" id="dayLabel"></label>
+      <select id="daySelect"></select>
+      <label id="timesLabel"></label>
+      <div class="times" id="times" role="group" aria-labelledby="timesLabel"></div>
+      <button class="btn" type="button" id="moveBtn" disabled></button>
+    </div>
+    <p class="msg bad" id="changeMsg" role="alert"></p>
+  </section>
+
+  <section class="card" id="cancelCard" hidden>
+    <h2 id="cancelTitle"></h2>
+    <p id="cancelIntro"></p>
+    <label class="check"><input type="checkbox" id="cancelAgree"> <span id="cancelAgreeText"></span></label>
+    <button class="btn danger" type="button" id="cancelBtn"></button>
+    <p class="msg bad" id="cancelMsg" role="alert"></p>
+  </section>
+
+  <p class="muted" id="callNote"></p>
+</main>
+
+<script>
+const PHONE = "(786) 259-7666";
+const I18N = {
+  es: {
+    locale: "es-US", am: "a. m.", pm: "p. m.",
+    loading: "Cargando tu reserva…",
+    notFoundTitle: "No encontramos esta reserva",
+    notFound: "Revisa que abriste el enlace completo de tu correo, o llámanos al",
+    errorLoad: "No pudimos cargar tu reserva. Intenta de nuevo o llámanos al",
+    title: "Tu reserva", titleCancelled: "Reserva cancelada", titleDone: "Entrega hecha", titleInactive: "Reserva no activa",
+    where: (address) => `Entrega en ${address}`,
+    conflictNote: "La hora que escogiste se ocupó mientras pagabas. Escoge otra hora abajo, sin costo.",
+    cancelledNote: "Esta reserva está cancelada.",
+    doneNote: "Esta entrega ya se hizo. ¡Gracias por escoger Yire Oil!",
+    inactiveNote: "Esta reserva ya no está activa.",
+    changeTitle: "Cambiar la hora",
+    changeIntro: (hours, left) => `Puedes cambiarla gratis hasta ${hours} horas antes. ${left === 1 ? "Te queda 1 cambio." : `Te quedan ${left} cambios.`}`,
+    changeIntroConflict: "Escoge una hora nueva. Este cambio no cuenta para tu límite.",
+    cutoff: (hours) => `Faltan menos de ${hours} horas para tu entrega, así que ya no se puede cambiar en línea. Para cambiarla, llámanos al`,
+    limit: (max) => `Ya usaste tus ${max} cambios en línea. Para cambiarla otra vez, llámanos al`,
+    dayLabel: "Día", timesLabel: "Hora",
+    noDays: "No hay horas libres en los próximos días. Llámanos al",
+    moveBtn: "Cambiar a esta hora", moving: "Guardando…",
+    moved: "Listo, tu entrega cambió. Te enviamos un correo con la nueva hora.",
+    slotTaken: "Alguien acaba de tomar esa hora. Escoge otra.",
+    error: "No se pudo completar. Intenta de nuevo o llámanos al",
+    cancelTitle: "Cancelar la reserva",
+    cancelIntro: (deposit, canMove) => `Si cancelas, la tarifa de reservación de $${deposit} no se devuelve.${canMove ? " Si solo necesitas otro día u otra hora, mejor cámbiala arriba, gratis." : ""}`,
+    cancelAgree: (deposit) => `Entiendo que los $${deposit} no se devuelven.`,
+    cancelBtn: "Cancelar mi reserva", cancelling: "Cancelando…",
+    cancelNeedAgree: "Marca la casilla para confirmar.",
+    cancelled: "Tu reserva fue cancelada. Te enviamos un correo de confirmación.",
+    questions: "¿Preguntas? Llámanos al"
+  },
+  en: {
+    locale: "en-US", am: "AM", pm: "PM",
+    loading: "Loading your booking…",
+    notFoundTitle: "We couldn't find this booking",
+    notFound: "Make sure you opened the full link from your email, or call us at",
+    errorLoad: "We couldn't load your booking. Try again, or call us at",
+    title: "Your booking", titleCancelled: "Booking cancelled", titleDone: "Delivery done", titleInactive: "Booking not active",
+    where: (address) => `Delivery at ${address}`,
+    conflictNote: "The time you picked was taken while you were paying. Pick another time below at no cost.",
+    cancelledNote: "This booking is cancelled.",
+    doneNote: "This delivery is done. Thanks for choosing Yire Oil!",
+    inactiveNote: "This booking is no longer active.",
+    changeTitle: "Change the time",
+    changeIntro: (hours, left) => `You can move it for free up to ${hours} hours before. ${left === 1 ? "1 change left." : `${left} changes left.`}`,
+    changeIntroConflict: "Pick a new time. This change doesn't count toward your limit.",
+    cutoff: (hours) => `Your delivery is less than ${hours} hours away, so it can't be changed online anymore. To change it, call us at`,
+    limit: (max) => `You've used your ${max} online changes. To change it again, call us at`,
+    dayLabel: "Day", timesLabel: "Time",
+    noDays: "There are no open times in the coming days. Call us at",
+    moveBtn: "Move to this time", moving: "Saving…",
+    moved: "Done, your delivery moved. We emailed you the new time.",
+    slotTaken: "Someone just took that time. Pick another one.",
+    error: "That didn't work. Try again, or call us at",
+    cancelTitle: "Cancel the booking",
+    cancelIntro: (deposit, canMove) => `If you cancel, the $${deposit} reservation fee is not refunded.${canMove ? " If you just need another day or time, move it above instead, for free." : ""}`,
+    cancelAgree: (deposit) => `I understand the $${deposit} is not refunded.`,
+    cancelBtn: "Cancel my booking", cancelling: "Cancelling…",
+    cancelNeedAgree: "Check the box to confirm.",
+    cancelled: "Your booking is cancelled. We emailed you a confirmation.",
+    questions: "Questions? Call us at"
+  }
+};
+
+const $ = (id) => document.getElementById(id);
+let t = I18N[navigator.language?.toLowerCase().startsWith("en") ? "en" : "es"];
+let view = null;
+let picked = null;
+// Link format: /reserva/#<booking id>.<token>. The fragment never goes to the server in the URL.
+const [bookingId = "", token = ""] = location.hash.slice(1).split(".");
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+function fmtTime(minutes) {
+  const hour = Math.floor(minutes / 60);
+  return `${hour % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hour < 12 ? t.am : t.pm}`;
+}
+function fmtDate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return cap(new Date(year, month - 1, day, 12).toLocaleDateString(t.locale, { weekday: "long", month: "long", day: "numeric" }));
+}
+// "text (786) 259-7666." with a tappable phone link.
+function withPhone(element, value) {
+  const link = document.createElement("a");
+  link.href = "tel:+1" + PHONE.replace(/\D/g, "");
+  link.textContent = PHONE;
+  element.replaceChildren(`${value} `, link, ".");
+}
+function setMsg(id, value = "", ok = false) {
+  $(id).textContent = value;
+  $(id).className = `msg ${ok ? "ok" : "bad"}`;
+}
+
+async function post(path, extra = {}) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: bookingId, token, ...extra })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) { const error = new Error(data.error || "error"); error.code = data.error; throw error; }
+  return data;
+}
+
+function render(data) {
+  view = data;
+  t = I18N[data.lang === "en" ? "en" : "es"];
+  document.documentElement.lang = data.lang === "en" ? "en" : "es";
+  const active = data.status === "confirmed" || data.status === "conflict";
+
+  $("title").textContent = active ? t.title : data.status === "cancelled" ? t.titleCancelled
+    : data.status === "completed" ? t.titleDone : t.titleInactive;
+  $("when").textContent = `${fmtDate(data.date)}, ${fmtTime(data.start)}`;
+  $("where").textContent = t.where(data.address);
+  const note = data.status === "conflict" ? t.conflictNote : data.status === "cancelled" ? t.cancelledNote
+    : data.status === "completed" ? t.doneNote : active ? "" : t.inactiveNote;
+  $("statusNote").hidden = !note;
+  $("statusNote").textContent = note;
+
+  // Change the time
+  $("changeCard").hidden = !active || data.changeBlocked === "status";
+  $("changeTitle").textContent = t.changeTitle;
+  setMsg("changeMsg");
+  const days = Object.keys(data.days || {}).sort();
+  $("changeForm").hidden = Boolean(data.changeBlocked) || !days.length;
+  if (data.changeBlocked === "cutoff") withPhone($("changeIntro"), t.cutoff(data.cutoffHours));
+  else if (data.changeBlocked === "limit") withPhone($("changeIntro"), t.limit(data.maxChanges));
+  else if (!days.length) withPhone($("changeIntro"), t.noDays);
+  else $("changeIntro").textContent = data.status === "conflict" ? t.changeIntroConflict : t.changeIntro(data.cutoffHours, data.changesLeft);
+  $("dayLabel").textContent = t.dayLabel;
+  $("timesLabel").textContent = t.timesLabel;
+  $("moveBtn").textContent = t.moveBtn;
+  $("daySelect").replaceChildren(...days.map((date) => {
+    const option = document.createElement("option");
+    option.value = date;
+    option.textContent = fmtDate(date);
+    return option;
+  }));
+  picked = null;
+  renderTimes();
+
+  // Cancel
+  $("cancelCard").hidden = !data.canCancel;
+  $("cancelTitle").textContent = t.cancelTitle;
+  $("cancelIntro").textContent = t.cancelIntro(data.deposit, !data.changeBlocked && days.length > 0);
+  $("cancelAgreeText").textContent = t.cancelAgree(data.deposit);
+  $("cancelAgree").checked = false;
+  $("cancelBtn").textContent = t.cancelBtn;
+  setMsg("cancelMsg");
+
+  withPhone($("callNote"), t.questions);
+}
+
+function renderTimes() {
+  const date = $("daySelect").value;
+  const slots = (view?.days || {})[date] || [];
+  $("times").replaceChildren(...slots.map((start) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "time";
+    button.textContent = fmtTime(start);
+    button.setAttribute("aria-pressed", String(picked?.date === date && picked?.start === start));
+    button.addEventListener("click", () => { picked = { date, start }; renderTimes(); });
+    return button;
+  }));
+  $("moveBtn").disabled = !picked || picked.date !== date;
+}
+
+async function load() {
+  $("title").textContent = t.loading;
+  if (!/^[0-9a-f-]{36}$/i.test(bookingId) || !/^[A-Za-z0-9_-]{32}$/.test(token)) return notFound();
+  try {
+    render(await post("/api/manage/get"));
+  } catch (error) {
+    if (error.code === "not_found") return notFound();
+    $("title").textContent = t.title;
+    withPhone($("where"), t.errorLoad);
+  }
+}
+function notFound() {
+  $("title").textContent = t.notFoundTitle;
+  withPhone($("where"), t.notFound);
+}
+
+$("daySelect").addEventListener("change", () => { picked = null; renderTimes(); });
+
+$("moveBtn").addEventListener("click", async () => {
+  if (!picked) return;
+  const button = $("moveBtn");
+  button.disabled = true;
+  button.textContent = t.moving;
+  try {
+    render(await post("/api/manage/move", { date: picked.date, start: picked.start }));
+    setMsg("flash", t.moved, true);
+    $("summaryCard").scrollIntoView({ block: "start" });
+  } catch (error) {
+    if (error.code === "slot_taken") {
+      try { render(await post("/api/manage/get")); } catch {}
+      setMsg("changeMsg", t.slotTaken);
+    } else {
+      withPhone($("changeMsg"), t.error);
+      $("changeMsg").className = "msg bad";
+    }
+    button.textContent = t.moveBtn;
+    renderTimes();
+  }
+});
+
+$("cancelBtn").addEventListener("click", async () => {
+  if (!$("cancelAgree").checked) return setMsg("cancelMsg", t.cancelNeedAgree);
+  const button = $("cancelBtn");
+  button.disabled = true;
+  button.textContent = t.cancelling;
+  try {
+    render(await post("/api/manage/cancel"));
+    setMsg("flash", t.cancelled, true);
+    $("summaryCard").scrollIntoView({ block: "start" });
+  } catch (error) {
+    withPhone($("cancelMsg"), t.error);
+    $("cancelMsg").className = "msg bad";
+  } finally {
+    button.disabled = false;
+    button.textContent = t.cancelBtn;
+  }
+});
+
+load();
+</script>
+</body>
+</html>

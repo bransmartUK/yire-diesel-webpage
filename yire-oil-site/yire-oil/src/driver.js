@@ -2,6 +2,8 @@ import { CONFIG } from "./config.js";
 import { ZIP_INDEX } from "./zips.js";
 import { nowLocal, travelMin } from "./schedule.js";
 import { b64uDecode, sendPush, vapidPublicKey } from "./push.js";
+import { cancelBooking, isChangeable, moveBooking, slotsOn } from "./manage.js";
+import { notifyCustomerUpdate } from "./email.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -162,7 +164,35 @@ async function savePushSubscription(req, env) {
   return json({ ok: true });
 }
 
-export async function handleDriverApi(req, env) {
+async function loadStop(env, id) {
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  return env.DB.prepare(`SELECT * FROM bookings WHERE id = ?1`).bind(id).first();
+}
+
+// The driver moves a stop (phone request). No cutoff or change limit, but the time must still be open.
+async function moveStop(req, env, ctx) {
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
+  const b = await loadStop(env, body.id);
+  if (!b) return json({ error: "stop_not_found" }, 404);
+  if (!isChangeable(b)) return json({ error: "not_changeable" }, 409);
+  const result = await moveBooking(env, b, body.date, body.start_min, { countsAsChange: false });
+  if (result !== "ok") return json({ error: result }, result === "bad_slot" || result === "same_slot" ? 400 : 409);
+  ctx.waitUntil(notifyCustomerUpdate(env, { ...b, date: body.date, start_min: body.start_min, status: "confirmed" }, { by: "driver" })
+    .catch((e) => console.error(e)));
+  return json({ ok: true });
+}
+
+async function cancelStop(req, env, ctx) {
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
+  const b = await loadStop(env, body.id);
+  if (!b || !(await cancelBooking(env, b))) return json({ error: "not_changeable" }, 409);
+  ctx.waitUntil(notifyCustomerUpdate(env, { ...b, status: "cancelled" }, { by: "driver" }).catch((e) => console.error(e)));
+  return json({ ok: true });
+}
+
+export async function handleDriverApi(req, env, ctx) {
   if (!(await verifyAccessRequest(req, env))) return json({ error: "unauthorized" }, 401);
   const url = new URL(req.url);
   if (req.method !== "GET" && req.headers.get("origin") !== url.origin) return json({ error: "forbidden" }, 403);
@@ -173,6 +203,15 @@ export async function handleDriverApi(req, env) {
     return readDay(date, env);
   }
   if (url.pathname === "/api/driver/complete" && req.method === "POST") return completeStop(req, env);
+  if (url.pathname === "/api/driver/slots" && req.method === "GET") {
+    const date = url.searchParams.get("date");
+    if (!validDate(date)) return json({ error: "bad_date" }, 400);
+    const b = await loadStop(env, url.searchParams.get("id"));
+    if (!b || !isChangeable(b)) return json({ error: "not_changeable" }, 409);
+    return json({ date, slots: await slotsOn(env, b, date) });
+  }
+  if (url.pathname === "/api/driver/move" && req.method === "POST") return moveStop(req, env, ctx);
+  if (url.pathname === "/api/driver/cancel" && req.method === "POST") return cancelStop(req, env, ctx);
   if (url.pathname === "/api/driver/blocks" && req.method === "POST") return createBlock(req, env);
   if (url.pathname === "/api/driver/push/key" && req.method === "GET") {
     const key = await vapidPublicKey(env);

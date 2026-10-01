@@ -116,6 +116,18 @@ export async function sendPush(env, message) {
   return { sent, removed };
 }
 
+// The customer moved or cancelled online.
+export function notifyDriverPushUpdate(env, b, { from }) {
+  const at = (x) => `${fmtDate(x.date, "es")}, ${fmtTime(x.start_min, "es")}`;
+  const cancelled = b.status === "cancelled";
+  return sendPush(env, {
+    title: cancelled ? "Reserva cancelada" : "Cambio de hora",
+    body: cancelled ? `${at(b)} · ${b.name}` : `${at(from)} → ${at(b)} · ${b.name}`,
+    url: `/chofer/?date=${b.date}`,
+    tag: b.id
+  });
+}
+
 // New paid booking (or a conflict) -> notification that opens the driver page on that day.
 export function notifyDriverPush(env, b, { conflict = false } = {}) {
   return sendPush(env, {

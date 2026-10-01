@@ -4,7 +4,9 @@ import { nowLocal, availabilityMap, openSlots, windowEnd, isValidStart, dayOfWee
 import { createPaymentLink, deletePaymentLink, verifySquareSignature } from "./square.js";
 import { notifyDriver, notifyCustomer, fmtDate, fmtTime } from "./email.js";
 import { handleDriverApi, verifyAccessRequest } from "./driver.js";
-import { notifyDriverPush } from "./push.js";
+import { b64uEncode, notifyDriverPush } from "./push.js";
+import { activeBookings, blocksBetween } from "./db.js";
+import { handleManageApi } from "./manage.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -22,7 +24,8 @@ export default {
       if (url.pathname === "/api/availability" && req.method === "GET") return await availability(url, env);
       if (url.pathname === "/api/checkout" && req.method === "POST") return await checkout(req, env);
       if (url.pathname === "/api/square-webhook" && req.method === "POST") return await webhook(req, env, ctx);
-      if (url.pathname.startsWith("/api/driver/")) return await handleDriverApi(req, env);
+      if (url.pathname.startsWith("/api/driver/")) return await handleDriverApi(req, env, ctx);
+      if (url.pathname.startsWith("/api/manage/")) return await handleManageApi(req, env, ctx);
       if (/^\/chofer(?:\/|$)/.test(url.pathname)) {
         if (!(await verifyAccessRequest(req, env))) return json({ error: "unauthorized" }, 401);
         // Assets serve /chofer/ as index.html; asking for /chofer/index.html directly would 307 back to /chofer/.
@@ -43,26 +46,6 @@ export default {
     ctx.waitUntil(releaseExpiredHolds(env));
   }
 };
-
-/* ---------------- data ---------------- */
-
-// Bookings that occupy the truck: paid, conflict (paid, needs a call), completed by the driver,
-// or held and still within the hold.
-async function activeBookings(env, fromDate, toDate, { excludeId = null } = {}) {
-  const { results } = await env.DB.prepare(
-    `SELECT id, date, start_min, lat, lng, status, created_at FROM bookings
-     WHERE date BETWEEN ?1 AND ?2
-       AND (status IN ('confirmed','conflict','completed') OR (status = 'pending' AND hold_expires > ?3))
-       AND (?4 IS NULL OR id <> ?4)`
-  ).bind(fromDate, toDate, Date.now(), excludeId).all();
-  return results;
-}
-async function blocksBetween(env, fromDate, toDate) {
-  const { results } = await env.DB.prepare(
-    `SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN ?1 AND ?2`
-  ).bind(fromDate, toDate).all();
-  return results;
-}
 
 /* ---------------- GET /api/availability?zip=33186 ---------------- */
 
@@ -102,7 +85,9 @@ async function checkout(req, env) {
     details: str(body.details, 300),
     notes: str(body.notes, 1000),
     lang: body.lang === "en" ? "en" : "es",
-    deposit_cents: CONFIG.depositCents
+    deposit_cents: CONFIG.depositCents,
+    // Secret for the "change or cancel" link; only ever sent in the customer's emails.
+    manage_token: b64uEncode(crypto.getRandomValues(new Uint8Array(24)))
   };
 
   if (!loc) return json({ error: "out_of_area" }, 400);
@@ -121,12 +106,12 @@ async function checkout(req, env) {
   const createdAt = Date.now();
   await env.DB.prepare(
     `INSERT INTO bookings (id, date, start_min, zip, lat, lng, status, hold_expires, name, phone, email, address,
-       equipment, gallons, details, notes, lang, deposit_cents, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)`
+       equipment, gallons, details, notes, lang, deposit_cents, created_at, manage_token)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)`
   ).bind(booking.id, booking.date, booking.start_min, zip, loc.lat, loc.lng,
          createdAt + CONFIG.holdMinutes * 60_000, booking.name, booking.phone, booking.email, booking.address,
          booking.equipment, booking.gallons, booking.details, booking.notes || null, booking.lang,
-         booking.deposit_cents, createdAt).run();
+         booking.deposit_cents, createdAt, booking.manage_token).run();
 
   // 3. Two people can pass step 1 at the same moment. Re-check against holds created before ours;
   //    the later one backs off.
@@ -208,7 +193,8 @@ async function confirmPaid(env, ctx, orderId, paymentId) {
   ctx.waitUntil(Promise.all([
     notifyDriver(env, updated, { conflict: next === "conflict" }),
     notifyDriverPush(env, updated, { conflict: next === "conflict" }),
-    next === "confirmed" ? notifyCustomer(env, updated) : Promise.resolve()
+    // Conflict customers get the change link too, so they can pick a new time themselves.
+    notifyCustomer(env, updated)
   ]).catch((e) => console.error(e)));
 }
 

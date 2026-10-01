@@ -15,5 +15,7 @@ export const CONFIG = {
   bookAheadDays: 60,
   minLeadMin: 60,         // no booking that starts within the next hour
   depositCents: 5000,     // $50.00
-  holdMinutes: 30         // how long a slot is held while the customer is on Square's checkout
+  holdMinutes: 30,        // how long a slot is held while the customer is on Square's checkout
+  rescheduleCutoffHours: 12, // customers can move their time online until this long before it
+  maxReschedules: 2       // online time changes per booking (the driver isn't limited)
 };

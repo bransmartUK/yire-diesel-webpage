@@ -35,7 +35,11 @@ h1{margin-bottom:0;font:800 36px/1 "Barlow Condensed",sans-serif}
 h2{margin-bottom:12px;font:800 24px/1.05 "Barlow Condensed",sans-serif}
 h3{font:700 20px/1.1 "Barlow Condensed",sans-serif}
 .date-control{display:grid;gap:5px;font-size:13px;font-weight:700}
-input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(--white);padding:9px 11px}
+input,select{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(--white);padding:9px 11px;font:inherit;color:inherit}
+dialog.sheet{width:min(100% - 24px,460px);border:0;border-top:6px solid var(--red);border-radius:4px;padding:20px;color:var(--ink)}
+dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
+.sheet label{display:grid;gap:5px;margin-bottom:12px;font-size:13px;font-weight:700}
+.sheet .actions{margin-top:6px}
 .icon-button{width:48px;height:48px;border:1px solid #777d79;border-radius:4px;background:var(--white);font-size:23px;cursor:pointer}
 .notice{min-height:0;margin:0 0 14px;color:var(--muted);font-weight:600}
 .notice.error{color:#9b181e}
@@ -63,6 +67,8 @@ input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(
 .action.secondary:hover{background:#e8e9e6}
 .action.complete{background:#146b45}
 .action.complete:hover{background:#0f5235}
+.action.danger{background:#fff;color:#9b181e;border:1px solid #d9a3a5}
+.action.danger:hover{background:var(--soft-red)}
 .action:disabled{opacity:.55;cursor:wait}
 .stop-list{display:grid;gap:10px}
 .stop{border:1px solid var(--line);border-left:5px solid #858b87;border-radius:3px;background:var(--white);padding:14px}
@@ -126,6 +132,8 @@ input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(
           <a class="action" id="nextNavigate" target="_blank" rel="noopener">Navegar</a>
           <a class="action secondary" id="nextCall">Llamar</a>
           <button class="action complete" id="nextComplete" type="button">Hecho</button>
+          <button class="action secondary" id="nextMove" type="button">Cambiar hora</button>
+          <button class="action danger" id="nextCancel" type="button">Cancelar</button>
         </div>
       </div>
     </div>
@@ -152,6 +160,19 @@ input{min-height:48px;border:1px solid #959a96;border-radius:4px;background:var(
     <ul class="block-list" id="blockList"></ul>
   </section>
 </main>
+<dialog class="sheet" id="moveDialog" aria-labelledby="moveTitle">
+  <form id="moveForm">
+    <h2 id="moveTitle">Cambiar hora</h2>
+    <p id="moveWho"></p>
+    <label for="moveDate">Nuevo día<input id="moveDate" type="date" required></label>
+    <label for="moveTime">Nueva hora<select id="moveTime" required></select></label>
+    <p class="notice error" id="moveMsg" role="alert"></p>
+    <div class="actions">
+      <button class="action" type="submit" id="moveSave">Guardar nueva hora</button>
+      <button class="action secondary" type="button" id="moveClose">Cerrar</button>
+    </div>
+  </form>
+</dialog>
 <script>
 const $ = (id) => document.getElementById(id);
 const state = { date: "", stops: [], blocks: [] };
@@ -183,6 +204,10 @@ async function request(path, options = {}) {
     if (data.error === "block_conflicts_with_booking") throw new Error("Ese horario se cruza con una entrega reservada.");
     if (data.error === "bad_block") throw new Error("Revisa las horas del bloqueo.");
     if (data.error === "push_not_configured") throw new Error("Los avisos todavía no están configurados en el servidor.");
+    if (data.error === "slot_taken") throw new Error("Esa hora ya no está libre. Escoge otra.");
+    if (data.error === "same_slot") throw new Error("Esa es la misma hora que ya tiene.");
+    if (data.error === "bad_slot") throw new Error("Escoge un día y una hora válidos (hasta 60 días).");
+    if (data.error === "not_changeable") throw new Error("Esta entrega ya no se puede cambiar. Actualiza la página.");
     throw new Error("No se pudo completar la solicitud. Intenta de nuevo.");
   }
   return data;
@@ -219,7 +244,13 @@ function stopCard(stop) {
     const done = text("button", "action complete", "Hecho");
     done.type = "button";
     done.addEventListener("click", () => markDone(stop.id, done));
-    actions.append(navigate, call, done);
+    const move = text("button", "action secondary", "Cambiar hora");
+    move.type = "button";
+    move.addEventListener("click", () => openMove(stop));
+    const cancel = text("button", "action danger", "Cancelar");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => cancelStop(stop, cancel));
+    actions.append(navigate, call, done, move, cancel);
     article.append(actions);
   }
   return article;
@@ -252,6 +283,8 @@ function render() {
     $("nextNavigate").href = mapUrl(next);
     $("nextCall").href = phoneUrl(next);
     $("nextComplete").onclick = () => markDone(next.id, $("nextComplete"));
+    $("nextMove").onclick = () => openMove(next);
+    $("nextCancel").onclick = () => cancelStop(next, $("nextCancel"));
     $("nextPanelStatus")?.remove();
     if (next.status === "conflict") {
       const badge = text("span", "badge conflict", "Conflicto");
@@ -300,6 +333,68 @@ async function markDone(id, button) {
     button.disabled = false;
   }
 }
+/* ---- Change time / cancel (phone requests) ---- */
+let moving = null;
+async function openMove(stop) {
+  moving = stop;
+  $("moveWho").textContent = `${stop.name} · ahora: ${fmtDate(stop.date)}, ${fmtTime(stop.start_min)}`;
+  $("moveDate").value = stop.date;
+  $("moveMsg").textContent = "";
+  $("moveDialog").showModal();
+  await loadMoveSlots();
+}
+async function loadMoveSlots() {
+  const select = $("moveTime");
+  select.replaceChildren();
+  $("moveSave").disabled = true;
+  $("moveMsg").textContent = "";
+  if (!$("moveDate").value) return;
+  try {
+    const { slots } = await request(`/api/driver/slots?id=${encodeURIComponent(moving.id)}&date=${encodeURIComponent($("moveDate").value)}`);
+    for (const start of slots) {
+      const option = text("option", "", fmtTime(start));
+      option.value = start;
+      select.append(option);
+    }
+    if (slots.length) $("moveSave").disabled = false;
+    else select.append(text("option", "", "No hay horas libres ese día"));
+  } catch (error) {
+    $("moveMsg").textContent = error.message;
+  }
+}
+async function cancelStop(stop, button) {
+  if (!confirm(`¿Cancelar la entrega de ${stop.name} (${fmtDate(stop.date)}, ${fmtTime(stop.start_min)})?\n\nLe enviamos un correo al cliente. Si le vas a devolver la reservación, hazlo en la app de Square.`)) return;
+  button.disabled = true;
+  try {
+    await request("/api/driver/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: stop.id }) });
+    await loadDay(state.date);
+    message("Entrega cancelada. El cliente recibe un correo.");
+  } catch (error) {
+    message(error.message, true);
+    button.disabled = false;
+  }
+}
+$("moveDate").addEventListener("change", loadMoveSlots);
+$("moveClose").addEventListener("click", () => $("moveDialog").close());
+$("moveForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = $("moveSave");
+  button.disabled = true;
+  try {
+    await request("/api/driver/move", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: moving.id, date: $("moveDate").value, start_min: Number($("moveTime").value) })
+    });
+    $("moveDialog").close();
+    await loadDay(state.date);
+    message("Hora cambiada. El cliente recibe un correo con la nueva hora.");
+  } catch (error) {
+    $("moveMsg").textContent = error.message;
+    button.disabled = false;
+  }
+});
+
 async function deleteBlock(id) {
   try {
     await request(`/api/driver/blocks/${encodeURIComponent(id)}`, { method: "DELETE" });

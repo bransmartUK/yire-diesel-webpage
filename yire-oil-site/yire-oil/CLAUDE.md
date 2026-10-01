@@ -27,7 +27,11 @@ src/config.js          Server-side business rules (source of truth)
 src/square.js          createPaymentLink, deletePaymentLink, verifySquareSignature
 src/email.js           notifyDriver (always Spanish), notifyCustomer (customer's language)
 src/zips.js            193 South Florida ZIP centroids (Miami-Dade, Broward, Palm Beach, Monroe)
-migrations/0001_init.sql   bookings + blocks tables
+migrations/0001_init.sql   bookings + blocks tables (0002 completed_at, 0003 push_subscriptions, 0004 manage_token/reschedule_count/cancelled_at)
+src/manage.js          Customer + driver time changes / cancellations
+src/db.js              Shared booking/block queries
+src/driver.js, src/push.js   Driver API (/api/driver/*, behind Access) and Web Push
+public/chofer/         Driver page (behind Access); public/reserva/ = customer "change or cancel" page
 wrangler.jsonc         Config, vars, D1 binding, cron
 .dev.vars.example      Local dev: SQUARE_ENV=mock
 ```
@@ -43,6 +47,15 @@ wrangler.jsonc         Config, vars, D1 binding, cron
 7. Paid after expiry: confirmed if the slot is still free, else `conflict` + "⚠ CONFLICTO" email to the driver (call customer / refund in Square).
 
 Booking statuses: `pending | confirmed | expired | cancelled | conflict | completed` (set by the driver page). Active (occupies the truck) = confirmed, conflict, completed, or pending with an unexpired hold.
+
+## Changes & cancellations (src/manage.js, public/reserva/index.html)
+
+- Every booking gets a random `manage_token` at checkout. Customer emails link to `SITE_URL/reserva/#<id>.<token>` (fragment, so the token never hits server logs). The page calls `POST /api/manage/{get,move,cancel}` with `{id, token}`.
+- Customer rules (config.js): move for free until `rescheduleCutoffHours` (12) before, at most `maxReschedules` (2) times; the $50 carries over. Cancel online any time before the start; the $50 is forfeited. A `conflict` booking can always move and it doesn't count.
+- Driver (`/api/driver/{slots,move,cancel}`, buttons on /chofer/): no cutoff or limit, but the new time must be open. Refunds stay manual in the Square app.
+- `moveBooking` re-checks the slot after writing and backs out if a checkout/move took it at the same instant (same idea as checkout's race guard).
+- Notifications: customer email on every move/cancel; driver email + push only when the customer did it. Conflict customers now also get an email with the "pick a new time" link.
+- Shared queries (`activeBookings`, `blocksBetween`) live in `src/db.js`.
 
 ## Scheduling rules (src/config.js)
 
@@ -60,7 +73,7 @@ Booking statuses: `pending | confirmed | expired | cancelled | conflict | comple
 - **Live vs demo mode:** on load it probes `/api/availability`; if JSON comes back it uses the server (`API = true`), otherwise it falls back to a local demo (bookings in localStorage, no payment). The demo is what the Claude preview artifact uses.
 - Brand: black/red/white from the logo (`--red: #D21F26`), Barlow + Barlow Condensed, red/white reflective-tape stripe under the header. Hero = logo bar + truck photo.
 - Stored values stay in English (equipment `"Dump truck"`, etc.); display is translated.
-- Placeholder still in the page: contact email `hello@yireoil.com`.
+- Contact email on the page: `reservas@yireoilservices.com` (forwarded).
 
 ## Commands
 
@@ -82,9 +95,9 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 
 - ✅ Deployed with D1 + cron. Square **sandbox** end-to-end test passed (checkout → webhook 200 → confirmed → return page).
 - ✅ Square sandbox app is under **my** Square account (fine for testing).
-- ✅ `RESEND_API_KEY` is configured. A synthetic Spanish booking notification to `NOTIFY_EMAIL` was accepted by Resend (HTTP 200); check inbox/spam for delivery. `onboarding@resend.dev` only delivers to the Resend account owner; verify a domain before emailing my stepdad.
+- ✅ Email: Resend domain `yireoilservices.com` (records on `send` + `resend._domainkey`, added via Resend's Cloudflare sign-in), `FROM_EMAIL` = `reservas@yireoilservices.com`, `NOTIFY_EMAIL` = my stepdad's Gmail. Cloudflare Email Routing forwards `reservas@` to his Gmail (MX on apex). DMARC `p=none` on `_dmarc`.
 - ⏳ **Production Square** must be set up **signed in as my stepdad** (his seller account) so deposits go to him: create app → Production access token + Location ID → webhook subscription (`payment.updated`, exact URL) → set the 3 secrets → `SQUARE_ENV: "production"` → deploy. Don't use OAuth; one-business setup.
-- ⏳ Custom domain `yireoilservices.com` is attached. Still to do: switch `SITE_URL` + Square webhook subscription URL together (or set `SQUARE_WEBHOOK_URL` to the old URL meanwhile), verify the domain in Resend + `FROM_EMAIL`, real contact email (needs MX), then consider disabling workers.dev.
+- ⏳ Custom domain `yireoilservices.com` is attached. Still to do: switch `SITE_URL` + Square webhook subscription URL together (or set `SQUARE_WEBHOOK_URL` to the old URL meanwhile), then consider disabling workers.dev. (Email domain + contact email are done.)
 - 🧹 A sandbox test booking (name "vewv", Fri Oct 2 1:00 AM) may still be blocking that slot — cancel with `UPDATE bookings SET status='cancelled' WHERE name='vewv'`.
 
 ## Driver page
@@ -97,6 +110,8 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 - Later ideas: add each confirmed booking to his Google Calendar; 7 AM daily summary email; SMS needs A2P 10DLC registration first.
 
 ## Gotchas
+
+- **Git auto-deploy (Workers Builds) root directory must be `yire-oil-site/yire-oil`** (repo root is `yire-diesel-webpage`). On 2026-10-01 it pointed higher up; the build published the stale `yire-oil-site/index.html` as an assets-only Worker, which took down `/api/*` and wiped every secret. Recovery: `npx.cmd wrangler deploy` from `yire-oil/`, then re-`secret put` all five. After any deploy problem, check `npx.cmd wrangler secret list`.
 
 - `wrangler tail` fails with "Cannot tail a Worker which only has assets" if the deployed version has no `main` script — redeploy.
 - Webhook URL in Square must match `SITE_URL/api/square-webhook` exactly (https, no trailing slash) or signatures fail (401).

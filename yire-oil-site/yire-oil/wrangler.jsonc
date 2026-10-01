@@ -37,10 +37,9 @@
 		"SQUARE_ENV": "sandbox",
 		"SITE_URL": "https://yire-oil.skywayhighwaygames.workers.dev",
 		// Where new-booking emails go (your stepdad).
-		"NOTIFY_EMAIL": "ninjakiller231@gmail.com",
-		// Resend sender. onboarding@resend.dev only delivers to your own Resend account email;
-		// verify a domain in Resend to send to anyone (e.g. "Yire Oil <reservas@yireoil.com>").
-		"FROM_EMAIL": "Yire Oil <onboarding@resend.dev>",
+		"NOTIFY_EMAIL": "livanmiranda01@gmail.com",
+		// Resend sender on the verified domain. Replies to reservas@ are forwarded to Gmail by Cloudflare Email Routing.
+		"FROM_EMAIL": "Yire Oil <reservas@yireoilservices.com>",
 		// Set both after creating the Cloudflare Access self-hosted application.
 		"ACCESS_TEAM_DOMAIN": "skywayhighway.cloudflareaccess.com",
 		"ACCESS_AUD": "286c6a1eb637884116716a4f5f7260395ce74dd8878ada312994dabc3538aa2b"

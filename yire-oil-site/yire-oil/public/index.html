@@ -252,7 +252,7 @@ const CONFIG = {
   businessName: "Yire Oil Service LLC",
   usdot: "4600167",
   phone: "(786) 259-7666",
-  email: "hello@yireoil.com",   // placeholder: replace with his real email
+  email: "reservas@yireoilservices.com", // forwarded to his Gmail by Cloudflare Email Routing
   defaultLang: "es",        // "es" or "en"
   baseZip: "33182",         // where the truck starts the day
   firstStart: "00:00",      // earliest appointment start
@@ -268,7 +268,8 @@ const CONFIG = {
   openDays: [0,1,2,3,4,5,6], // 0=Sun ... 6=Sat. Every day.
   bookAheadDays: 60,        // how far out people can book
   minLeadMin: 60,           // can't book a slot starting within this many minutes
-  depositUSD: 50
+  depositUSD: 50,
+  rescheduleCutoffHours: 12 // free online time changes until this long before (server: src/config.js)
 };
 
 /* =====================================================================
@@ -292,7 +293,7 @@ const I18N = {
     allWeek: "Lun–Dom", hours24: "Lun–Dom, 24 horas",
     area: "Todo el sur de Florida",
     bookTitle: "Reserva una entrega",
-    bookLede: d => `Una tarifa de reservación de $${d}, no reembolsable, aparta tu hora. El diésel se paga cuando se llena el tanque. Las horas disponibles dependen de dónde esté tu equipo y de las otras entregas del día.`,
+    bookLede: d => `Una tarifa de reservación de $${d}, no reembolsable, aparta tu hora. Si cambian tus planes, puedes cambiar la hora gratis hasta ${CONFIG.rescheduleCutoffHours} horas antes. El diésel se paga cuando se llena el tanque. Las horas disponibles dependen de dónde esté tu equipo y de las otras entregas del día.`,
     step1: "Verifica tu código postal",
     zipLabel: "Código postal",
     zipBtn: "Verificar área",
@@ -324,13 +325,13 @@ const I18N = {
     errNetwork: phone => `No pudimos cargar las horas disponibles. Intenta de nuevo o llama al ${phone}.`,
     confirmingTitle: "Confirmando tu pago…",
     confirmingText: "Esto toma unos segundos.",
-    doneTextLive: (first,date,time) => `${first}, tu entrega está reservada para el ${date} a las ${time.replace(/\.$/,"")}. Te enviamos la confirmación por correo y te llamaremos cuando vayamos en camino.`,
+    doneTextLive: (first,date,time) => `${first}, tu entrega está reservada para el ${date} a las ${time.replace(/\.$/,"")}. Te enviamos la confirmación por correo, con un enlace por si necesitas cambiar la hora, y te llamaremos cuando vayamos en camino.`,
     pendingTitle: "Todavía no vemos tu pago",
     pendingText: phone => `Si ya pagaste, te llegará la confirmación por correo en unos minutos. Si no, puedes reservar de nuevo o llamarnos al ${phone}.`,
     expiredTitle: "La reserva expiró",
     expiredText: "Pasaron más de 30 minutos sin completar el pago, así que liberamos esa hora. Puedes reservar de nuevo.",
     conflictTitle: "Recibimos tu pago",
-    conflictText: phone => `Pero esa hora se ocupó mientras pagabas. Te llamaremos para buscar otra hora, o llámanos al ${phone}.`,
+    conflictText: phone => `Pero esa hora se ocupó mientras pagabas. Te enviamos un correo con un enlace para escoger otra hora sin costo, o llámanos al ${phone}.`,
     errFields: "Completa tu nombre, teléfono, dirección y los detalles del equipo.",
     errEmail: "Escribe un correo electrónico válido.",
     errAgree: d => `Marca la casilla para aceptar la tarifa de $${d} no reembolsable.`,
@@ -358,7 +359,7 @@ const I18N = {
     allWeek: "Mon–Sun", hours24: "Mon–Sun, 24 hours",
     area: "All of South Florida",
     bookTitle: "Reserve a delivery",
-    bookLede: d => `A $${d} non-refundable reservation fee holds your time. You pay for the diesel when we fill up. Open times depend on where your equipment is and the day's other deliveries.`,
+    bookLede: d => `A $${d} non-refundable reservation fee holds your time. If plans change, you can move your time for free up to ${CONFIG.rescheduleCutoffHours} hours before. You pay for the diesel when we fill up. Open times depend on where your equipment is and the day's other deliveries.`,
     step1: "Check your ZIP code",
     zipLabel: "ZIP code",
     zipBtn: "Check area",
@@ -390,13 +391,13 @@ const I18N = {
     errNetwork: phone => `We couldn't load open times. Try again, or call ${phone}.`,
     confirmingTitle: "Confirming your payment…",
     confirmingText: "This takes a few seconds.",
-    doneTextLive: (first,date,time) => `${first}, your delivery is booked for ${date} at ${time}. We emailed your confirmation and we'll call you when we're on the way.`,
+    doneTextLive: (first,date,time) => `${first}, your delivery is booked for ${date} at ${time}. We emailed your confirmation, with a link in case you need to change the time, and we'll call you when we're on the way.`,
     pendingTitle: "We don't see your payment yet",
     pendingText: phone => `If you already paid, your confirmation email will arrive in a few minutes. If not, you can book again or call us at ${phone}.`,
     expiredTitle: "Your reservation expired",
     expiredText: "More than 30 minutes passed without completing payment, so we released that time. You can book again.",
     conflictTitle: "We got your payment",
-    conflictText: phone => `But that time was taken while you were paying. We'll call you to find another time, or call us at ${phone}.`,
+    conflictText: phone => `But that time was taken while you were paying. We emailed you a link to pick another time at no cost, or call us at ${phone}.`,
     errFields: "Fill in your name, phone, address and equipment details.",
     errEmail: "Enter a valid email address.",
     errAgree: d => `Check the box to accept the non-refundable $${d} fee.`,
