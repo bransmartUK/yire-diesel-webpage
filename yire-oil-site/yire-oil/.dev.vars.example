@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local testing. "mock" fakes Square (no network, instant payment).
+SQUARE_ENV=mock
+SITE_URL=http://localhost:8787
+SQUARE_WEBHOOK_SIGNATURE_KEY=test-signature-key
