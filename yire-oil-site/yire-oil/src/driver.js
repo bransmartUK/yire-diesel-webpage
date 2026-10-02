@@ -106,6 +106,23 @@ async function readDay(date, env) {
   return json({ date, stops, blocks });
 }
 
+// Every paid stop from now on (next 60 days), so he can see what's coming without picking each day.
+// A stop that started less than serviceMin ago still counts: he may be there right now.
+const UPCOMING_LIMIT = 50;
+async function readUpcoming(env) {
+  const now = nowLocal();
+  const { results } = await env.DB.prepare(
+    `SELECT id, date, start_min, status, name, zip, equipment FROM bookings
+     WHERE status IN ('confirmed','conflict') AND (date > ?1 OR (date = ?1 AND start_min >= ?2))
+     ORDER BY date, start_min LIMIT ?3`
+  ).bind(now.date, now.min - CONFIG.serviceMin, UPCOMING_LIMIT).all();
+  return json({
+    today: now.date,
+    stops: results.map((b) => ({ ...b, city: ZIP_INDEX[b.zip]?.city || b.zip })),
+    more: results.length === UPCOMING_LIMIT
+  });
+}
+
 async function completeStop(req, env) {
   let body;
   try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
@@ -202,6 +219,7 @@ export async function handleDriverApi(req, env, ctx) {
     if (!validDate(date)) return json({ error: "bad_date" }, 400);
     return readDay(date, env);
   }
+  if (url.pathname === "/api/driver/upcoming" && req.method === "GET") return readUpcoming(env);
   if (url.pathname === "/api/driver/complete" && req.method === "POST") return completeStop(req, env);
   if (url.pathname === "/api/driver/slots" && req.method === "GET") {
     const date = url.searchParams.get("date");

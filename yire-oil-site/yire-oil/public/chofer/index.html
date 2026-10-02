@@ -80,6 +80,14 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
 .stop p{margin:0 0 7px;overflow-wrap:anywhere}
 .drive{color:var(--muted);font-size:14px;font-weight:600}
 .empty{padding:14px;border:1px dashed #aeb2ae;color:var(--muted)}
+.upcoming{display:grid;gap:16px}
+.upcoming-day h3{margin:0 0 2px;font-size:19px}
+.upcoming-row{display:flex;gap:12px;align-items:baseline;width:100%;min-height:48px;margin-top:6px;padding:11px 12px;border:1px solid var(--line);border-left:5px solid #858b87;border-radius:3px;background:var(--white);text-align:left;cursor:pointer}
+.upcoming-row:hover{background:#ecebe6}
+.upcoming-row.conflict{border-left-color:var(--red);background:#fffafa}
+.upcoming-time{flex:none;min-width:86px;font:700 19px/1.1 "Barlow Condensed",sans-serif}
+.upcoming-who{overflow-wrap:anywhere}
+#nextJump{margin-top:4px}
 .completed-list{display:grid;gap:8px}
 .completed-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
 .block-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
@@ -116,7 +124,11 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
   <section aria-labelledby="nextHeading">
     <div class="next-panel">
       <p class="eyebrow" id="nextHeading">Próxima entrega</p>
-      <div id="nextEmpty"><h2>No hay entregas pendientes</h2><p>Este día está libre.</p></div>
+      <div id="nextEmpty">
+        <h2 id="nextEmptyTitle">No hay entregas pendientes</h2>
+        <p id="nextEmptyText">Este día está libre.</p>
+        <button class="action" id="nextJump" type="button" hidden>Ver ese día</button>
+      </div>
       <div id="nextContent" hidden>
         <p class="next-time" id="nextTime"></p>
         <h2 class="next-name" id="nextName"></h2>
@@ -137,6 +149,12 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="section" aria-labelledby="upcomingHeading">
+    <h2 id="upcomingHeading">Próximas entregas</h2>
+    <p class="drive">Todas las entregas que vienen. Toca una para ver ese día.</p>
+    <div class="upcoming" id="upcomingList"></div>
   </section>
 
   <section class="section" aria-labelledby="routeHeading">
@@ -175,7 +193,7 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
 </dialog>
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { date: "", stops: [], blocks: [] };
+const state = { date: "", stops: [], blocks: [], today: "", upcoming: [], moreUpcoming: false };
 const equipmentEs = { "Dump truck": "Camión de volteo", "Semi / tractor-trailer": "Tractocamión / rastra", "RV / motorhome": "RV / casa rodante", Boat: "Bote", Other: "Otro" };
 
 function text(tag, className, value) {
@@ -191,6 +209,13 @@ function fmtTime(minutes) {
 function fmtDate(value) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day, 12).toLocaleDateString("es-US", { weekday: "long", month: "long", day: "numeric" });
+}
+const cap = (value) => value.charAt(0).toUpperCase() + value.slice(1);
+// "Hoy · Viernes, 2 de octubre", "Mañana · …", "Lunes, 5 de octubre · en 3 días"
+function dayLabel(date) {
+  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${state.today}T00:00:00Z`)) / 86_400_000);
+  const name = cap(fmtDate(date));
+  return days === 0 ? `Hoy · ${name}` : days === 1 ? `Mañana · ${name}` : `${name} · en ${days} días`;
 }
 function message(value, error = false) {
   $("notice").textContent = value;
@@ -293,6 +318,7 @@ function render() {
     }
   } else {
     $("nextPanelStatus")?.remove();
+    renderNextEmpty();
   }
 
   $("blockList").replaceChildren();
@@ -308,6 +334,61 @@ function render() {
   }
   if (!state.blocks.length) $("blockList").append(text("li", "empty", "No hay bloqueos para este día."));
 }
+// Nothing left on the chosen day: say when the next delivery is and offer to jump there.
+function renderNextEmpty() {
+  const isToday = state.date === state.today;
+  $("nextEmptyTitle").textContent = isToday ? "Hoy no hay entregas pendientes" : "No hay entregas pendientes este día";
+  const later = state.today ? state.upcoming.find((stop) => stop.date > state.date) : null;
+  $("nextJump").hidden = !later;
+  if (later) {
+    $("nextEmptyText").textContent = `La próxima: ${dayLabel(later.date)}, ${fmtTime(later.start_min)} · ${later.name}`;
+    $("nextJump").onclick = () => showDay(later.date);
+  } else {
+    $("nextEmptyText").textContent = state.today ? "No hay más entregas reservadas por ahora." : "Este día está libre.";
+  }
+}
+function renderUpcoming() {
+  const list = $("upcomingList");
+  list.replaceChildren();
+  if (!state.upcoming.length) {
+    list.append(text("p", "empty", "No hay entregas reservadas por ahora."));
+    return;
+  }
+  let group = null;
+  for (const stop of state.upcoming) {
+    if (group?.dataset.date !== stop.date) {
+      group = text("div", "upcoming-day");
+      group.dataset.date = stop.date;
+      group.append(text("h3", "", dayLabel(stop.date)));
+      list.append(group);
+    }
+    const row = text("button", `upcoming-row${stop.status === "conflict" ? " conflict" : ""}`);
+    row.type = "button";
+    row.append(
+      text("span", "upcoming-time", fmtTime(stop.start_min)),
+      text("span", "upcoming-who", [stop.name, stop.city, equipmentEs[stop.equipment] || stop.equipment, stop.status === "conflict" ? "Conflicto" : ""].filter(Boolean).join(" · "))
+    );
+    row.addEventListener("click", () => showDay(stop.date));
+    group.append(row);
+  }
+  if (state.moreUpcoming) list.append(text("p", "empty", "Mostrando las próximas 50. Escoge un día arriba para ver más."));
+}
+async function loadUpcoming() {
+  try {
+    const data = await request("/api/driver/upcoming");
+    state.today = data.today;
+    state.upcoming = data.stops || [];
+    state.moreUpcoming = Boolean(data.more);
+    renderUpcoming();
+    if (!state.stops.some((stop) => stop.status !== "completed")) renderNextEmpty();
+  } catch (error) {
+    $("upcomingList").replaceChildren(text("p", "empty", error.message));
+  }
+}
+function showDay(date) {
+  loadDay(date);
+  window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
 async function loadDay(date = "") {
   message("Cargando entregas…");
   try {
@@ -321,6 +402,8 @@ async function loadDay(date = "") {
   } catch (error) {
     message(error.message, true);
   }
+  // Every reload (and every change: done, move, cancel) refreshes the upcoming list too.
+  loadUpcoming();
 }
 async function markDone(id, button) {
   if (!confirm("¿Marcar esta entrega como hecha? No se puede deshacer desde aquí.")) return;
