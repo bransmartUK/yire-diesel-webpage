@@ -113,6 +113,7 @@ Vars in wrangler.jsonc: `SQUARE_ENV` (`sandbox` | `production` | `mock`), `SITE_
 - **Git auto-deploy (Workers Builds) root directory must be `yire-oil-site/yire-oil`** (repo root is `yire-diesel-webpage`). On 2026-10-01 it pointed higher up; the build published the stale `yire-oil-site/index.html` as an assets-only Worker, which took down `/api/*` and wiped every secret. Recovery: `npx.cmd wrangler deploy` from `yire-oil/`, then re-`secret put` all five. After any deploy problem, check `npx.cmd wrangler secret list`.
 
 - `wrangler tail` fails with "Cannot tail a Worker which only has assets" if the deployed version has no `main` script — redeploy.
+- Square sends `payment.updated` again for refunds etc. `confirmPaid` only acts on `pending`/`expired` bookings with no `square_payment_id`; before 2026-10-02 a refunded cancellation came back as `confirmed` (and re-sent emails/push).
 - Webhook URL in Square must match `SITE_URL/api/square-webhook` exactly (https, no trailing slash) or signatures fail (401).
 - Sandbox vs Production in Square have separate tokens, locations, and webhook subscriptions/keys.
 - Square online processing on his free plan: 3.3% + 30¢ (~$1.95 per $50 deposit).

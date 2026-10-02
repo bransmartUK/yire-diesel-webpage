@@ -173,9 +173,10 @@ async function webhook(req, env, ctx) {
 
 async function confirmPaid(env, ctx, orderId, paymentId) {
   const b = await env.DB.prepare(`SELECT * FROM bookings WHERE square_order_id = ?1`).bind(orderId).first();
-  // Unknown order, or already handled. Square also sends payment.updated for refunds, so a completed
-  // stop must not fall through and get flipped back to confirmed.
-  if (!b || ["confirmed", "conflict", "completed"].includes(b.status)) return;
+  // Only an unpaid hold (or one that expired before the payment landed) can be confirmed here.
+  // Square also sends payment.updated for refunds and other changes on the same payment; those must not
+  // touch a booking that was already handled, above all a cancelled one, which would come back to life.
+  if (!b || (b.status !== "pending" && b.status !== "expired") || b.square_payment_id) return;
 
   let next = "confirmed";
   if (b.status !== "pending" || b.hold_expires <= Date.now()) {
