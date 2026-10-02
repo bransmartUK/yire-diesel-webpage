@@ -15,6 +15,8 @@
 <style>
 :root{color-scheme:light;--red:#d21f26;--red-dark:#a71920;--ink:#171918;--paper:#f4f3ef;--white:#fff;--line:#d4d5d1;--muted:#5e6561;--green:#176b46;--amber:#8a4c00;--soft-red:#fbe9e9;font-family:Barlow,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--paper)}
 *{box-sizing:border-box}
+/* `hidden` must win over classes that set display (flex bars, .action buttons). */
+[hidden]{display:none !important}
 body{margin:0;min-width:320px;font-size:17px;line-height:1.45}
 button,input{font:inherit;color:inherit}
 button,a,input{touch-action:manipulation}
