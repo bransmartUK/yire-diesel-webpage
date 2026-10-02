@@ -604,7 +604,16 @@ async function testPush() {
 $("dayInput").addEventListener("change", () => loadDay($("dayInput").value));
 $("reloadButton").addEventListener("click", () => loadDay(state.date));
 // Coming back to the app (e.g. from a notification) shows fresh stops.
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.date) loadDay(state.date); });
+// Opening the app = he's seen it: reset the red number on the icon (count is kept by sw.js).
+async function clearBadge() {
+  try { await (await caches.open("yire-badge")).delete("/chofer/__badge"); } catch {}
+  try { if ("clearAppBadge" in navigator) await navigator.clearAppBadge(); } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  clearBadge();
+  if (state.date) loadDay(state.date);
+});
 $("blockForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $("blockSubmit");
@@ -625,6 +634,7 @@ $("blockForm").addEventListener("submit", async (event) => {
 });
 loadDay(new URLSearchParams(location.search).get("date") || "");
 initPush();
+clearBadge();
 </script>
 </body>
 </html>
