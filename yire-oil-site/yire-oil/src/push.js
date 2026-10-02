@@ -93,6 +93,9 @@ export async function sendPush(env, message, { endpoint = null } = {}) {
   let sent = 0, removed = 0;
   const failed = [];
   await Promise.all(results.map(async (sub) => {
+    // Short, non-secret label so logs say which phone: e.g. "web.push.apple.com/QAVDmX".
+    const url = new URL(sub.endpoint);
+    const phone = `${url.host}/${url.pathname.slice(1, 7)}`;
     try {
       const res = await fetch(sub.endpoint, {
         method: "POST",
@@ -107,16 +110,18 @@ export async function sendPush(env, message, { endpoint = null } = {}) {
       });
       if (res.status === 404 || res.status === 410) {
         await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?1`).bind(sub.endpoint).run();
+        console.log(`push ${phone} gone (${res.status}), subscription removed`);
         removed++;
       } else if (!res.ok) {
         const detail = (await res.text()).slice(0, 200);
-        console.error(`push ${new URL(sub.endpoint).host} ${res.status}: ${detail}`);
+        console.error(`push ${phone} rejected ${res.status}: ${detail}`);
         failed.push({ status: res.status, detail });
       } else {
+        console.log(`push ${phone} accepted ${res.status}: ${message.title}`);
         sent++;
       }
     } catch (error) {
-      console.error("push failed:", error?.message || error);
+      console.error(`push ${phone} failed:`, error?.message || error);
       failed.push({ status: 0, detail: String(error?.message || error).slice(0, 200) });
     }
   }));
