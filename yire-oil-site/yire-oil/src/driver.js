@@ -1,9 +1,10 @@
 import { CONFIG } from "./config.js";
 import { ZIP_INDEX } from "./zips.js";
-import { nowLocal, travelMin } from "./schedule.js";
-import { b64uDecode, sendPush, vapidPublicKey } from "./push.js";
+import { addDays, nowLocal, travelMin } from "./schedule.js";
+import { b64uDecode, bookingMessage, sendPush, updateMessage, vapidPublicKey } from "./push.js";
 import { cancelBooking, isChangeable, moveBooking, slotsOn } from "./manage.js";
 import { notifyCustomerUpdate } from "./email.js";
+import { logActivity } from "./db.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -44,22 +45,23 @@ async function loadAccessKeys(issuer, force = false) {
   return cachedKeys;
 }
 
+// Returns { email } for a valid Access login, or null.
 export async function verifyAccessRequest(req, env) {
   const issuer = accessIssuer(env);
   const audience = String(env.ACCESS_AUD || "").trim();
   const token = req.headers.get("Cf-Access-Jwt-Assertion");
-  if (!issuer || !audience || !token) return false;
+  if (!issuer || !audience || !token) return null;
 
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) return null;
     const header = decodeJsonSegment(parts[0]);
     const claims = decodeJsonSegment(parts[1]);
-    if (header.alg !== "RS256" || typeof header.kid !== "string") return false;
+    if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
     const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     const now = Math.floor(Date.now() / 1000);
-    if (claims.iss !== issuer || !aud.includes(audience) || typeof claims.exp !== "number" || claims.exp <= now) return false;
-    if (claims.nbf !== undefined && (typeof claims.nbf !== "number" || claims.nbf > now + 60)) return false;
+    if (claims.iss !== issuer || !aud.includes(audience) || typeof claims.exp !== "number" || claims.exp <= now) return null;
+    if (claims.nbf !== undefined && (typeof claims.nbf !== "number" || claims.nbf > now + 60)) return null;
 
     let keys = await loadAccessKeys(issuer);
     let jwk = keys.find((key) => key.kid === header.kid);
@@ -67,15 +69,16 @@ export async function verifyAccessRequest(req, env) {
       keys = await loadAccessKeys(issuer, true);
       jwk = keys.find((key) => key.kid === header.kid);
     }
-    if (!jwk || jwk.kty !== "RSA") return false;
+    if (!jwk || jwk.kty !== "RSA") return null;
     const key = await crypto.subtle.importKey("jwk", jwk, {
       name: "RSASSA-PKCS1-v1_5", hash: "SHA-256"
     }, false, ["verify"]);
     const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-    return await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, decodeBase64Url(parts[2]), signed);
+    if (!(await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, decodeBase64Url(parts[2]), signed))) return null;
+    return { email: typeof claims.email === "string" ? claims.email.toLowerCase() : "" };
   } catch (error) {
     console.error("Access JWT verification failed:", error?.message || error);
-    return false;
+    return null;
   }
 }
 
@@ -187,7 +190,7 @@ async function loadStop(env, id) {
 }
 
 // The driver moves a stop (phone request). No cutoff or change limit, but the time must still be open.
-async function moveStop(req, env, ctx) {
+async function moveStop(req, env, ctx, who) {
   let body;
   try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
   const b = await loadStop(env, body.id);
@@ -195,22 +198,54 @@ async function moveStop(req, env, ctx) {
   if (!isChangeable(b)) return json({ error: "not_changeable" }, 409);
   const result = await moveBooking(env, b, body.date, body.start_min, { countsAsChange: false });
   if (result !== "ok") return json({ error: result }, result === "bad_slot" || result === "same_slot" ? 400 : 409);
-  ctx.waitUntil(notifyCustomerUpdate(env, { ...b, date: body.date, start_min: body.start_min, status: "confirmed" }, { by: "driver" })
-    .catch((e) => console.error(e)));
+  const updated = { ...b, date: body.date, start_min: body.start_min, status: "confirmed" };
+  ctx.waitUntil(Promise.all([
+    notifyCustomerUpdate(env, updated, { by: "driver" }),
+    logActivity(env, "moved", who.email || "driver", updated, b)
+  ]).catch((e) => console.error(e)));
   return json({ ok: true });
 }
 
-async function cancelStop(req, env, ctx) {
+async function cancelStop(req, env, ctx, who) {
   let body;
   try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
   const b = await loadStop(env, body.id);
   if (!b || !(await cancelBooking(env, b))) return json({ error: "not_changeable" }, 409);
-  ctx.waitUntil(notifyCustomerUpdate(env, { ...b, status: "cancelled" }, { by: "driver" }).catch((e) => console.error(e)));
+  const updated = { ...b, status: "cancelled" };
+  ctx.waitUntil(Promise.all([
+    notifyCustomerUpdate(env, updated, { by: "driver" }),
+    logActivity(env, "cancelled", who.email || "driver", updated)
+  ]).catch((e) => console.error(e)));
   return json({ ok: true });
 }
 
+// Last 30 events for the bell. `me` lets each phone skip its own actions when counting what's new.
+async function readActivity(env, who) {
+  const { results } = await env.DB.prepare(
+    `SELECT at, kind, actor, booking_id, name, date, start_min, from_date, from_start
+     FROM activity ORDER BY at DESC, id DESC LIMIT 30`
+  ).all();
+  return json({ me: who.email, events: results });
+}
+
+// "Probar aviso" options: the real message builders with sample data, sent only to the tapping phone.
+// Nothing is written to the database and no email is sent.
+const TEST_KINDS = ["new", "moved", "cancelled", "conflict"];
+function testMessage(kind) {
+  if (!TEST_KINDS.includes(kind)) {
+    return { title: "Prueba de avisos", body: "Los avisos de Yire Oil funcionan en este teléfono.", url: "/chofer/", tag: "test" };
+  }
+  const today = nowLocal().date;
+  const sample = { id: `prueba-${kind}`, date: addDays(today, 3), start_min: 600, zip: CONFIG.baseZip,
+    name: "Cliente de prueba", status: kind === "cancelled" ? "cancelled" : "confirmed" };
+  if (kind === "moved") return updateMessage(sample, { from: { date: addDays(today, 2), start_min: 840 } });
+  if (kind === "cancelled") return updateMessage(sample);
+  return bookingMessage(sample, { conflict: kind === "conflict" });
+}
+
 export async function handleDriverApi(req, env, ctx) {
-  if (!(await verifyAccessRequest(req, env))) return json({ error: "unauthorized" }, 401);
+  const who = await verifyAccessRequest(req, env);
+  if (!who) return json({ error: "unauthorized" }, 401);
   const url = new URL(req.url);
   if (req.method !== "GET" && req.headers.get("origin") !== url.origin) return json({ error: "forbidden" }, 403);
 
@@ -220,6 +255,9 @@ export async function handleDriverApi(req, env, ctx) {
     return readDay(date, env);
   }
   if (url.pathname === "/api/driver/upcoming" && req.method === "GET") return readUpcoming(env);
+  if (url.pathname === "/api/driver/activity" && req.method === "GET") return readActivity(env, who);
+  // Changes with every deploy; the page shows "Hay una versión nueva" when it differs from what it loaded with.
+  if (url.pathname === "/api/driver/version" && req.method === "GET") return json({ id: env.CF_VERSION_METADATA?.id || "dev" });
   if (url.pathname === "/api/driver/complete" && req.method === "POST") return completeStop(req, env);
   if (url.pathname === "/api/driver/slots" && req.method === "GET") {
     const date = url.searchParams.get("date");
@@ -228,8 +266,8 @@ export async function handleDriverApi(req, env, ctx) {
     if (!b || !isChangeable(b)) return json({ error: "not_changeable" }, 409);
     return json({ date, slots: await slotsOn(env, b, date) });
   }
-  if (url.pathname === "/api/driver/move" && req.method === "POST") return moveStop(req, env, ctx);
-  if (url.pathname === "/api/driver/cancel" && req.method === "POST") return cancelStop(req, env, ctx);
+  if (url.pathname === "/api/driver/move" && req.method === "POST") return moveStop(req, env, ctx, who);
+  if (url.pathname === "/api/driver/cancel" && req.method === "POST") return cancelStop(req, env, ctx, who);
   if (url.pathname === "/api/driver/blocks" && req.method === "POST") return createBlock(req, env);
   if (url.pathname === "/api/driver/push/key" && req.method === "GET") {
     const key = await vapidPublicKey(env);
@@ -242,9 +280,7 @@ export async function handleDriverApi(req, env, ctx) {
     let body = {};
     try { body = await req.json(); } catch {}
     if (typeof body.endpoint !== "string" || !body.endpoint) return json({ error: "bad_subscription" }, 400);
-    return json(await sendPush(env, {
-      title: "Prueba de avisos", body: "Los avisos de Yire Oil funcionan en este teléfono.", url: "/chofer/", tag: "test"
-    }, { endpoint: body.endpoint }));
+    return json(await sendPush(env, testMessage(body.kind), { endpoint: body.endpoint }));
   }
   const blockMatch = url.pathname.match(/^\/api\/driver\/blocks\/([0-9a-f-]{36})$/i);
   if (blockMatch && req.method === "DELETE") {

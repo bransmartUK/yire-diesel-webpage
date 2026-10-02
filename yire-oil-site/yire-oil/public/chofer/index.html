@@ -43,6 +43,22 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
 .icon-button{width:48px;height:48px;border:1px solid #777d79;border-radius:4px;background:var(--white);font-size:23px;cursor:pointer}
 .notice{min-height:0;margin:0 0 14px;color:var(--muted);font-weight:600}
 .notice.error{color:#9b181e}
+.bell{position:relative;flex:none;width:48px;height:48px;display:grid;place-items:center;border:1px solid #616663;border-radius:4px;background:transparent;color:#fff;cursor:pointer}
+.bell:hover{background:#2a2d2b}
+.bell-count{position:absolute;top:-7px;right:-7px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--red);color:#fff;font:700 13px/22px Barlow,sans-serif;text-align:center}
+.update-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:12px 14px;background:#fff6e5;border:1px solid #e9cf9f;border-left:5px solid var(--amber);border-radius:3px}
+.update-bar p{margin:0;font-weight:700}
+.update-bar .action{flex:none}
+.push-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.activity-list{list-style:none;margin:0 0 12px;padding:0;max-height:62vh;overflow:auto;border-top:1px solid var(--line)}
+.activity-item button{display:block;width:100%;padding:11px 10px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer}
+.activity-item button:hover{background:#ecebe6}
+.activity-item span{display:block}
+.activity-item.unseen button{background:var(--soft-red)}
+.activity-item.unseen .activity-title::before{content:"";display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:var(--red)}
+.activity-title{font-weight:700}
+.activity-meta{color:var(--muted);font-size:14px}
+.tag-new{flex:none;margin-left:auto;padding:2px 7px;border-radius:3px;background:var(--red);color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px}
 .push-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:12px 14px;background:var(--white);border:1px solid var(--line);border-left:5px solid var(--red);border-radius:3px}
 .push-panel p{margin:0;font-weight:600}
 .push-panel .action{flex:none}
@@ -106,7 +122,10 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
 <header class="masthead">
   <div class="head-inner">
     <div class="brand"><img src="/logo.jpg" alt=""><div><div class="brand-name">Yire Oil Service</div><div class="brand-sub">Panel del chofer</div></div></div>
-    <span class="private">Acceso privado</span>
+    <button class="bell" id="bellButton" type="button" aria-label="Actividad">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1Z"/></svg>
+      <span class="bell-count" id="bellCount" hidden></span>
+    </button>
   </div>
 </header>
 <main class="page">
@@ -115,10 +134,23 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
     <label class="date-control" for="dayInput">Día<input id="dayInput" type="date" aria-label="Escoger día"></label>
     <button class="icon-button" id="reloadButton" type="button" aria-label="Actualizar entregas" title="Actualizar">↻</button>
   </div>
+  <div class="update-bar" id="updateBar" hidden>
+    <p>Hay una versión nueva de la app.</p>
+    <button class="action" id="updateButton" type="button">Actualizar</button>
+  </div>
   <p class="notice" id="notice" role="status" aria-live="polite"></p>
   <div class="push-panel" id="pushPanel" hidden>
     <p id="pushText"></p>
-    <button class="action" id="pushButton" type="button" hidden></button>
+    <div class="push-controls">
+      <select id="pushKind" aria-label="Tipo de aviso de prueba" hidden>
+        <option value="test">Prueba simple</option>
+        <option value="new">Nueva reserva</option>
+        <option value="moved">Cambio de hora</option>
+        <option value="cancelled">Cancelación</option>
+        <option value="conflict">Conflicto</option>
+      </select>
+      <button class="action" id="pushButton" type="button" hidden></button>
+    </div>
   </div>
 
   <section aria-labelledby="nextHeading">
@@ -178,6 +210,11 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.55)}
     <ul class="block-list" id="blockList"></ul>
   </section>
 </main>
+<dialog class="sheet" id="activityDialog" aria-labelledby="activityTitle">
+  <h2 id="activityTitle">Actividad</h2>
+  <ul class="activity-list" id="activityList"></ul>
+  <div class="actions"><button class="action secondary" type="button" id="activityClose">Cerrar</button></div>
+</dialog>
 <dialog class="sheet" id="moveDialog" aria-labelledby="moveTitle">
   <form id="moveForm">
     <h2 id="moveTitle">Cambiar hora</h2>
@@ -368,22 +405,126 @@ function renderUpcoming() {
       text("span", "upcoming-time", fmtTime(stop.start_min)),
       text("span", "upcoming-who", [stop.name, stop.city, equipmentEs[stop.equipment] || stop.equipment, stop.status === "conflict" ? "Conflicto" : ""].filter(Boolean).join(" · "))
     );
+    const tag = bookingTags().get(stop.id);
+    if (tag) row.append(text("span", "tag-new", tag));
     row.addEventListener("click", () => showDay(stop.date));
     group.append(row);
   }
   if (state.moreUpcoming) list.append(text("p", "empty", "Mostrando las próximas 50. Escoge un día arriba para ver más."));
 }
-async function loadUpcoming() {
-  try {
-    const data = await request("/api/driver/upcoming");
-    state.today = data.today;
-    state.upcoming = data.stops || [];
-    state.moreUpcoming = Boolean(data.more);
-    renderUpcoming();
-    if (!state.stops.some((stop) => stop.status !== "completed")) renderNextEmpty();
-  } catch (error) {
-    $("upcomingList").replaceChildren(text("p", "empty", error.message));
+
+/* ---- Activity (bell). "Seen" is kept per phone, like the icon badge. ---- */
+const SEEN_KEY = "yire-activity-seen";
+function readSeen() { try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; } }
+function writeSeen(value) { try { localStorage.setItem(SEEN_KEY, String(value)); } catch {} }
+state.activity = [];
+state.me = "";
+state.seen = readSeen();
+// New to this phone = after the last time the list was opened here, and not something this person did.
+const isUnseen = (event) => event.at > state.seen && event.actor !== state.me;
+const ACTIVITY_TITLES = {
+  new: "Nueva reserva",
+  conflict: "Conflicto: pagó, pero la hora ya estaba tomada",
+  moved: "Cambio de hora",
+  cancelled: "Cancelada"
+};
+function shortDay(date, start) {
+  const [year, month, day] = date.split("-").map(Number);
+  const name = new Date(year, month - 1, day, 12).toLocaleDateString("es-US", { weekday: "short", day: "numeric", month: "short" });
+  return `${cap(name)}, ${fmtTime(start)}`;
+}
+function ago(at) {
+  const minutes = Math.round((Date.now() - at) / 60_000);
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 48) return "ayer";
+  return new Date(at).toLocaleDateString("es-US", { day: "numeric", month: "short" });
+}
+const actorLabel = (actor) => actor === "customer" ? "el cliente" : actor === state.me ? "ti" : "el panel del chofer";
+// Booking id -> "NUEVA" / "CAMBIÓ" for unseen events, shown on Próximas entregas.
+function bookingTags() {
+  const tags = new Map();
+  for (const event of state.activity) {
+    if (!isUnseen(event) || tags.has(event.booking_id)) continue;
+    if (event.kind === "new" || event.kind === "conflict") tags.set(event.booking_id, "NUEVA");
+    else if (event.kind === "moved") tags.set(event.booking_id, "CAMBIÓ");
   }
+  return tags;
+}
+function renderBell() {
+  const count = state.activity.filter(isUnseen).length;
+  $("bellCount").hidden = !count;
+  $("bellCount").textContent = count > 9 ? "9+" : String(count);
+  $("bellButton").setAttribute("aria-label", count ? `Actividad: ${count} sin ver` : "Actividad");
+}
+function openActivity() {
+  const list = $("activityList");
+  list.replaceChildren();
+  if (!state.activity.length) list.append(text("li", "empty", "Todavía no hay actividad. Aquí salen las reservas nuevas, los cambios y las cancelaciones."));
+  for (const event of state.activity) {
+    const item = text("li", `activity-item${isUnseen(event) ? " unseen" : ""}`);
+    const button = text("button", "");
+    button.type = "button";
+    const when = event.kind === "moved" && event.from_date
+      ? `${shortDay(event.from_date, event.from_start)} → ${shortDay(event.date, event.start_min)}`
+      : shortDay(event.date, event.start_min);
+    button.append(
+      text("span", "activity-title", ACTIVITY_TITLES[event.kind] || event.kind),
+      text("span", "", `${event.name} · ${when}`),
+      text("span", "activity-meta", `${ago(event.at)} · por ${actorLabel(event.actor)}`)
+    );
+    button.addEventListener("click", () => { $("activityDialog").close(); showDay(event.date); });
+    item.append(button);
+    list.append(item);
+  }
+  // Opening the list counts as seen, on this phone only. Highlights stay until it's closed.
+  if (state.activity.length) {
+    state.seen = Math.max(state.seen, state.activity[0].at);
+    writeSeen(state.seen);
+  }
+  $("activityDialog").showModal();
+}
+$("bellButton").addEventListener("click", openActivity);
+$("activityClose").addEventListener("click", () => $("activityDialog").close());
+$("activityDialog").addEventListener("close", () => { renderBell(); renderUpcoming(); });
+
+/* ---- "Hay una versión nueva": compare the server's deploy id with the one this page loaded with ---- */
+function checkVersion(id) {
+  if (!id) return;
+  if (!state.version) state.version = id;
+  else if (id !== state.version) $("updateBar").hidden = false;
+}
+$("updateButton").addEventListener("click", async () => {
+  $("updateButton").disabled = true;
+  try { await (await navigator.serviceWorker?.getRegistration("/chofer/"))?.update(); } catch {}
+  location.reload();
+});
+
+async function loadUpcoming() {
+  const [upcoming, activity, version] = await Promise.all([
+    request("/api/driver/upcoming").catch((error) => ({ error })),
+    request("/api/driver/activity").catch(() => null),
+    request("/api/driver/version").catch(() => null)
+  ]);
+  if (activity) {
+    state.me = activity.me || "";
+    state.activity = activity.events || [];
+    // First time on this phone: start with nothing "new" instead of the whole history.
+    if (!state.seen && state.activity.length) { state.seen = state.activity[0].at; writeSeen(state.seen); }
+    renderBell();
+  }
+  checkVersion(version?.id);
+  if (upcoming.error) {
+    $("upcomingList").replaceChildren(text("p", "empty", upcoming.error.message));
+    return;
+  }
+  state.today = upcoming.today;
+  state.upcoming = upcoming.stops || [];
+  state.moreUpcoming = Boolean(upcoming.more);
+  renderUpcoming();
+  if (!state.stops.some((stop) => stop.status !== "completed")) renderNextEmpty();
 }
 function showDay(date) {
   loadDay(date);
@@ -507,6 +648,7 @@ function pushView(value, buttonLabel = "", action = null) {
   $("pushButton").hidden = !buttonLabel;
   $("pushButton").textContent = buttonLabel;
   $("pushButton").onclick = action;
+  $("pushKind").hidden = action !== testPush;
 }
 const pushOn = () => pushView("Avisos activados en este teléfono.", "Probar aviso", testPush);
 async function saveSubscription(subscription) {
@@ -583,10 +725,10 @@ async function testPush() {
     const result = await request("/api/driver/push/test", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ endpoint: subscription.endpoint })
+      body: JSON.stringify({ endpoint: subscription.endpoint, kind: $("pushKind").value })
     });
     if (result.sent) {
-      message("Aviso de prueba enviado a este teléfono. Debe llegar en unos segundos.");
+      message("Aviso de prueba enviado solo a este teléfono. Debe llegar en unos segundos (es de prueba: no se guarda nada).");
     } else if (result.failed?.length) {
       message(`El servicio de avisos rechazó el envío (código ${result.failed[0].status}). Mándale este código a Bryan.`, true);
     } else {

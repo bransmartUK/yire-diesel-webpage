@@ -128,25 +128,33 @@ export async function sendPush(env, message, { endpoint = null } = {}) {
   return { sent, removed, failed };
 }
 
-// The customer moved or cancelled online.
-export function notifyDriverPushUpdate(env, b, { from }) {
+// Message builders, shared by the real notifications and the driver page's fake test ones.
+export function updateMessage(b, { from } = {}) {
   const at = (x) => `${fmtDate(x.date, "es")}, ${fmtTime(x.start_min, "es")}`;
   const cancelled = b.status === "cancelled";
-  return sendPush(env, {
+  return {
     title: cancelled ? "Reserva cancelada" : "Cambio de hora",
     body: cancelled ? `${at(b)} · ${b.name}` : `${at(from)} → ${at(b)} · ${b.name}`,
     url: `/chofer/?date=${b.date}`,
     tag: b.id
-  });
+  };
 }
-
-// New paid booking (or a conflict) -> notification that opens the driver page on that day.
-export function notifyDriverPush(env, b, { conflict = false } = {}) {
-  return sendPush(env, {
+export function bookingMessage(b, { conflict = false } = {}) {
+  return {
     title: conflict ? "⚠ Conflicto de reserva" : "Nueva entrega reservada",
     body: [`${fmtDate(b.date, "es")}, ${fmtTime(b.start_min, "es")}`, ZIP_INDEX[b.zip]?.city, b.name]
       .filter(Boolean).join(" · "),
     url: `/chofer/?date=${b.date}`,
     tag: b.id
-  });
+  };
+}
+
+// The customer moved or cancelled online.
+export function notifyDriverPushUpdate(env, b, { from }) {
+  return sendPush(env, updateMessage(b, { from }));
+}
+
+// New paid booking (or a conflict) -> notification that opens the driver page on that day.
+export function notifyDriverPush(env, b, { conflict = false } = {}) {
+  return sendPush(env, bookingMessage(b, { conflict }));
 }

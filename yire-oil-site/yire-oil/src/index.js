@@ -5,7 +5,7 @@ import { createPaymentLink, deletePaymentLink, verifySquareSignature } from "./s
 import { notifyDriver, notifyCustomer, fmtDate, fmtTime } from "./email.js";
 import { handleDriverApi, verifyAccessRequest } from "./driver.js";
 import { b64uEncode, notifyDriverPush } from "./push.js";
-import { activeBookings, blocksBetween } from "./db.js";
+import { activeBookings, blocksBetween, logActivity } from "./db.js";
 import { handleManageApi } from "./manage.js";
 
 const json = (data, status = 200) =>
@@ -195,7 +195,8 @@ async function confirmPaid(env, ctx, orderId, paymentId) {
     notifyDriver(env, updated, { conflict: next === "conflict" }),
     notifyDriverPush(env, updated, { conflict: next === "conflict" }),
     // Conflict customers get the change link too, so they can pick a new time themselves.
-    notifyCustomer(env, updated)
+    notifyCustomer(env, updated),
+    logActivity(env, next === "conflict" ? "conflict" : "new", "customer", updated)
   ]).catch((e) => console.error(e)));
 }
 

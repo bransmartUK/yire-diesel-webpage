@@ -3,7 +3,7 @@
 import { CONFIG } from "./config.js";
 import { ZIP_INDEX } from "./zips.js";
 import { nowLocal, openSlots, availabilityMap, windowEnd, isValidStart, dayOfWeek } from "./schedule.js";
-import { activeBookings, blocksBetween } from "./db.js";
+import { activeBookings, blocksBetween, logActivity } from "./db.js";
 import { notifyCustomerUpdate, notifyDriverUpdate } from "./email.js";
 import { notifyDriverPushUpdate } from "./push.js";
 
@@ -137,7 +137,8 @@ export async function handleManageApi(req, env, ctx) {
     notifyAll(ctx, [
       notifyCustomerUpdate(env, updated, { by: "customer" }),
       notifyDriverUpdate(env, updated, { from: b }),
-      notifyDriverPushUpdate(env, updated, { from: b })
+      notifyDriverPushUpdate(env, updated, { from: b }),
+      logActivity(env, "moved", "customer", updated, b)
     ]);
     return json(await customerView(env, updated));
   }
@@ -150,7 +151,8 @@ export async function handleManageApi(req, env, ctx) {
     notifyAll(ctx, [
       notifyCustomerUpdate(env, updated, { by: "customer" }),
       notifyDriverUpdate(env, updated, {}),
-      notifyDriverPushUpdate(env, updated, {})
+      notifyDriverPushUpdate(env, updated, {}),
+      logActivity(env, "cancelled", "customer", updated)
     ]);
     return json(await customerView(env, updated));
   }
