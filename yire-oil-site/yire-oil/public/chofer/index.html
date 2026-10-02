@@ -571,9 +571,29 @@ async function testPush() {
   const button = $("pushButton");
   button.disabled = true;
   try {
-    const result = await request("/api/driver/push/test", { method: "POST" });
-    message(result.sent ? "Aviso de prueba enviado. Debe llegar en unos segundos." : "No se envió ningún aviso. Toca Activar avisos otra vez.", !result.sent);
-    if (!result.sent) pushView("Recibe un aviso en este teléfono cuando alguien reserve.", "Activar avisos", enablePush);
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      message("Este teléfono no está suscrito. Toca Activar avisos otra vez.", true);
+      pushView("Recibe un aviso en este teléfono cuando alguien reserve.", "Activar avisos", enablePush);
+      return;
+    }
+    // Make sure the server has this phone, then test only this phone.
+    await saveSubscription(subscription);
+    const result = await request("/api/driver/push/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint })
+    });
+    if (result.sent) {
+      message("Aviso de prueba enviado a este teléfono. Debe llegar en unos segundos.");
+    } else if (result.failed?.length) {
+      message(`El servicio de avisos rechazó el envío (código ${result.failed[0].status}). Mándale este código a Bryan.`, true);
+    } else {
+      message("El servicio de avisos dice que esta suscripción ya no sirve. Toca Activar avisos otra vez.", true);
+      await subscription.unsubscribe().catch(() => {});
+      pushView("Recibe un aviso en este teléfono cuando alguien reserve.", "Activar avisos", enablePush);
+    }
   } catch (error) {
     message(error.message, true);
   } finally {

@@ -78,16 +78,20 @@ export async function encryptPayload(sub, plaintext) {
   return concat(header, asPublic, cipher);
 }
 
-// Sends to every subscribed phone; drops subscriptions the push service says are gone.
-export async function sendPush(env, message) {
+// Sends to every subscribed phone (or only `endpoint`, for the test button); drops subscriptions
+// the push service says are gone. `failed` holds the push service's HTTP status for anything else.
+export async function sendPush(env, message, { endpoint = null } = {}) {
   const v = await vapid(env);
   if (!v) {
     console.log(`[push skipped] ${message.title}`);
-    return { sent: 0, removed: 0 };
+    return { sent: 0, removed: 0, failed: [] };
   }
-  const { results } = await env.DB.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions`).all();
+  const { results } = await env.DB.prepare(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE ?1 IS NULL OR endpoint = ?1`
+  ).bind(endpoint).all();
   const body = JSON.stringify(message);
   let sent = 0, removed = 0;
+  const failed = [];
   await Promise.all(results.map(async (sub) => {
     try {
       const res = await fetch(sub.endpoint, {
@@ -105,15 +109,18 @@ export async function sendPush(env, message) {
         await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?1`).bind(sub.endpoint).run();
         removed++;
       } else if (!res.ok) {
-        console.error(`push ${new URL(sub.endpoint).host} ${res.status}: ${await res.text()}`);
+        const detail = (await res.text()).slice(0, 200);
+        console.error(`push ${new URL(sub.endpoint).host} ${res.status}: ${detail}`);
+        failed.push({ status: res.status, detail });
       } else {
         sent++;
       }
     } catch (error) {
       console.error("push failed:", error?.message || error);
+      failed.push({ status: 0, detail: String(error?.message || error).slice(0, 200) });
     }
   }));
-  return { sent, removed };
+  return { sent, removed, failed };
 }
 
 // The customer moved or cancelled online.

@@ -238,9 +238,13 @@ export async function handleDriverApi(req, env, ctx) {
   if (url.pathname === "/api/driver/push/subscribe" && req.method === "POST") return savePushSubscription(req, env);
   if (url.pathname === "/api/driver/push/test" && req.method === "POST") {
     if (!(await vapidPublicKey(env))) return json({ error: "push_not_configured" }, 503);
+    // Only the phone that tapped "Probar aviso", so each phone proves its own setup.
+    let body = {};
+    try { body = await req.json(); } catch {}
+    if (typeof body.endpoint !== "string" || !body.endpoint) return json({ error: "bad_subscription" }, 400);
     return json(await sendPush(env, {
       title: "Prueba de avisos", body: "Los avisos de Yire Oil funcionan en este teléfono.", url: "/chofer/", tag: "test"
-    }));
+    }, { endpoint: body.endpoint }));
   }
   const blockMatch = url.pathname.match(/^\/api\/driver\/blocks\/([0-9a-f-]{36})$/i);
   if (blockMatch && req.method === "DELETE") {
