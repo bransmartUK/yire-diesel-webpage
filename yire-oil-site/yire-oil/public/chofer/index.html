@@ -21,7 +21,9 @@ body{margin:0;min-width:320px;font-size:17px;line-height:1.45}
 button,input{font:inherit;color:inherit}
 button,a,input{touch-action:manipulation}
 :focus-visible{outline:3px solid #1267a5;outline-offset:3px}
-.masthead{background:#111;color:#fff;border-bottom:8px solid var(--red)}
+/* The home-screen app draws under the iPhone status bar (black-translucent + viewport-fit=cover):
+   pad by the safe-area insets so the logo and bell sit below the clock/battery, not under them. */
+.masthead{background:#111;color:#fff;border-bottom:8px solid var(--red);padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
 .head-inner,.page{width:min(100% - 32px,900px);margin-inline:auto}
 .head-inner{min-height:74px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
@@ -29,7 +31,7 @@ button,a,input{touch-action:manipulation}
 .brand-name{font:800 21px/1 "Barlow Condensed",sans-serif;text-transform:uppercase}
 .brand-sub{margin-top:4px;color:#c9ccca;font-size:13px}
 .private{border:1px solid #616663;border-radius:4px;padding:6px 9px;color:#e8e9e8;font-size:13px;white-space:nowrap}
-.page{padding:24px 0 54px}
+.page{padding:24px 0 calc(54px + env(safe-area-inset-bottom,0px))}
 .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:end;margin-bottom:18px}
 .eyebrow{margin:0 0 3px;color:var(--red-dark);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 h1,h2,h3,p{margin-top:0}
